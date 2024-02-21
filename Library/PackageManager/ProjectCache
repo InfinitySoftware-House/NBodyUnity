@@ -5,16 +5,16 @@ m_ProjectFiles:
     m_ContentTrackingEnabled: 1
     m_ModificationDate:
       serializedVersion: 2
-      ticks: 638439801160000000
-    m_Hash: 1910728502
+      ticks: 638441237120000000
+    m_Hash: 1264550029
   m_LockFileStatus:
     m_FilePath: /Users/francesco/Desktop/Progetti/NBodyUnity/Packages/packages-lock.json
     m_PathExists: 1
     m_ContentTrackingEnabled: 1
     m_ModificationDate:
       serializedVersion: 2
-      ticks: 638439801160000000
-    m_Hash: 3963788998
+      ticks: 638441237120000000
+    m_Hash: 2656265690
 m_EmbeddedPackageManifests:
   m_ManifestsStatus: {}
 m_LocalPackages:
@@ -22,6 +22,63 @@ m_LocalPackages:
 m_ProjectPath: /Users/francesco/Desktop/Progetti/NBodyUnity/Packages
 m_EditorVersion: 2022.3.15f1 (b58023a2b463)
 m_ResolvedPackages:
+- packageId: com.nobi.roundedcorners@https://github.com/kirevdokimov/Unity-UI-Rounded-Corners.git
+  testable: 0
+  isDirectDependency: 1
+  version: 3.3.1
+  source: 5
+  resolvedPath: /Users/francesco/Desktop/Progetti/NBodyUnity/Library/PackageCache/com.nobi.roundedcorners@8862398817
+  assetPath: Packages/com.nobi.roundedcorners
+  name: com.nobi.roundedcorners
+  displayName: UI Rounded Corners
+  author:
+    name: 
+    email: 
+    url: 
+  category: UI
+  type: 
+  description: This package provides components and shaders that allow you to add
+    rounded corners to UI elements!
+  status: 0
+  errors: []
+  versions:
+    all: []
+    compatible: []
+    recommended: 
+    deprecated: []
+  dependencies: []
+  resolvedDependencies: []
+  keywords:
+  - UI
+  - Shader
+  - Cg
+  - Hlsl
+  registry:
+    id: main
+    name: 
+    url: https://packages.unity.com
+    scopes: []
+    isDefault: 1
+    capabilities: 7
+    configSource: 0
+  hideInEditor: 1
+  isAssetStorePackage: 0
+  datePublishedTicks: 0
+  documentationUrl: 
+  hasRepository: 0
+  repository:
+    type: 
+    url: 
+    revision: 
+    path: 
+  unityLifecycle:
+    version: 
+    nextVersion: 
+    recommendedVersion: 
+    isDeprecated: 0
+    deprecationMessage: 
+  isDeprecated: 0
+  deprecationMessage: 
 - packageId: com.unity.adaptiveperformance@5.0.2
   testable: 0
   isDirectDependency: 1
@@ -619,6 +676,7 @@ m_ResolvedPackages:
     - 3.2.0-pre.6
     - 3.2.0-pre.7
     - 3.2.0-pre.8
+    - 3.2.0-pre.9
     - 4.0.0-pre.1
     - 4.0.0-pre.2
     compatible:
@@ -633,6 +691,7 @@ m_ResolvedPackages:
     - 3.2.0-pre.6
     - 3.2.0-pre.7
     - 3.2.0-pre.8
+    - 3.2.0-pre.9
     - 4.0.0-pre.1
     - 4.0.0-pre.2
     recommended: 3.0.8

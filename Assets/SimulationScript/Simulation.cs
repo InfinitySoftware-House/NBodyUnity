@@ -5,10 +5,11 @@ using TMPro;
 using System.Threading.Tasks;
 using Color = UnityEngine.Color;
 using PimDeWitte.UnityMainThreadDispatcher;
-using UnityEngine.Rendering.PostProcessing;
+using UnityEngine.UI;
 
 public class ParticleEntity
 {
+    public string name;
     public Vector3 position;
     public float mass;
     public Vector3 acceleration = Vector3.zero;
@@ -16,7 +17,10 @@ public class ParticleEntity
     public float temperature = 0;
     public Vector3 size;
     public GameObject particleObject;
-    public ParticleEntity(Vector3 size, Vector3 velocity, float mass, float temperature, GameObject particleObject)
+    public string type;
+    public bool isBlackHole = false;
+
+    public ParticleEntity(Vector3 size, Vector3 velocity, float mass, float temperature, string type, GameObject particleObject)
     {
         this.size = size;
         position = particleObject.transform.position;
@@ -24,7 +28,16 @@ public class ParticleEntity
         this.velocity = velocity;
         this.particleObject = particleObject;
         this.temperature = temperature;
+        this.size = size;
+        this.type = type;
+        name = RandomNameGenerator(new Star(type, mass, temperature));
+        isBlackHole = mass > 1000;
     }
+    private string RandomNameGenerator(Star star)
+    {
+        return star.Mass.ToString("F3") + "_" + star.Temperature.ToString("F0");
+    }
+
     public void setPosition(Vector3 newPosition)
     {
         position = newPosition;
@@ -46,7 +59,6 @@ public struct Star
     }
 }
 
-
 public class Simulation : MonoBehaviour
 {
     public int particlesCount = 200;
@@ -56,13 +68,18 @@ public class Simulation : MonoBehaviour
     public TMP_Text particlesCountText;
     public TMP_Text iterationsPerSecText;
     public TMP_Text yearPassedText;
+    public TMP_Text clickToAddParticleText;
+    public TMP_Text newStarVelocityText;
     public bool showOrbitLines = false;
     public bool showBloom = false;
     private double iterationsPerSec = 0;
     private int yearPassed = 0;
     private double nextUpdate = 1;
-    private int clusterParticlesCount = 20;
-    public static Vector3 massCenter = Vector3.zero;
+    public GameObject objectInfoObject;
+    private int _starVelocity = 10;
+    private ParticleEntity lockedParticle;
+    private string[] STAR_TYPE = { "Brown Dwarf", "Red Dwarf", "Orange Dwarf", "Yellow Dwarf", "Yellow-White Dwarf", "White Star", "Blue-White Star", "Blue Star"};
+    private float BLACK_HOLE_MASS = 1000;
 
     // Method to get the color of a star based on its temperature
     public static Color GetStarColor(float temperature)
@@ -122,39 +139,51 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    private void CreateCluster(Scene currentScene, Vector3 position)
+    private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
         // Create a cluster of particles
-        for (int i = 0; i < clusterParticlesCount; i++)
+        for (int i = 0; i < count; i++)
         {
             float? x = null;
             float? y = null;
             float? z = null;
             Vector3 size = new Vector3(0.1f, 0.1f, 0.1f);
             Star star = GenerateRandomStar();
-            x ??= Random.Range(position.x - 10, position.x + 10); 
+            x ??= Random.Range(position.x - 10, position.x + 10);
             y ??= Random.Range(position.y - 10, position.y + 10);
             z ??= Random.Range(position.z - 10, position.z + 10);
-            
+
             GameObject particleObject = CreateParticle(size, star.Temperature, x, y, z);
 
             SceneManager.MoveGameObjectToScene(particleObject, currentScene);
-            ParticleEntity particle = new(size, Vector3.zero, star.Mass, star.Temperature, particleObject);
+            ParticleEntity particle = new(size, Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject);
             particles.Add(particle);
         }
     }
 
-    public static Star GenerateRandomStar()
+    public Star GetStarTypeByTemperature(float temperature, float mass)
     {
-        // Define star category probabilities and characteristics
-        // These ranges are approximations and can be adjusted for more accuracy or different interpretations
-        string[] types = { "Brown Dwarf", "Red Dwarf", "Orange Dwarf", "Yellow Dwarf", "Yellow-White Dwarf", "White Star", "Blue-White Star", "Blue Star" };
+        float[,] massRanges = { { 0.01f, 0.08f }, { 0.08f, 0.45f }, { 0.45f, 0.8f }, { 0.8f, 1.04f }, { 1.04f, 1.4f }, { 1.4f, 2.1f }, { 2.1f, 16f }, { 16f, 50f } };
+        float[,] tempRanges = { { 500, 2500 }, { 2500, 3700 }, { 3700, 5200 }, { 5200, 6000 }, { 6000, 7500 }, { 7500, 10000 }, { 10000, 30000 }, { 30000, 50000 } };
+
+        for (int i = 0; i < STAR_TYPE.Length; i++)
+        {
+            if (temperature >= tempRanges[i, 0] && temperature <= tempRanges[i, 1] && mass >= massRanges[i, 0] && mass <= massRanges[i, 1])
+            {
+                return new Star(STAR_TYPE[i], mass, temperature);
+            }
+        }
+        return new Star("Unknown", mass, temperature);
+    }
+
+    public Star GenerateRandomStar()
+    {
         float[,] massRanges = { { 0.01f, 0.08f }, { 0.08f, 0.45f }, { 0.45f, 0.8f }, { 0.8f, 1.04f }, { 1.04f, 1.4f }, { 1.4f, 2.1f }, { 2.1f, 16f }, { 16f, 50f } };
         float[,] tempRanges = { { 500, 2500 }, { 2500, 3700 }, { 3700, 5200 }, { 5200, 6000 }, { 6000, 7500 }, { 7500, 10000 }, { 10000, 30000 }, { 30000, 50000 } };
 
         // Generate a random type based on the types array
-        int typeIndex = Random.Range(0, types.Length);
-        string selectedType = types[typeIndex];
+        int typeIndex = Random.Range(0, STAR_TYPE.Length);
+        string selectedType = STAR_TYPE[typeIndex];
 
         // Generate random mass and temperature within selected type range
         float mass = Random.Range(massRanges[typeIndex, 0], massRanges[typeIndex, 1]);
@@ -163,8 +192,8 @@ public class Simulation : MonoBehaviour
         // Return a new Star object with the generated properties
         return new Star(selectedType, mass, temperature);
     }
-        
-    GameObject CreateParticle(Vector3 size, float temperature, float? x = null, float? y = null, float? z = null)
+
+    GameObject CreateParticle(Vector3 size, float temperature, float? x = null, float? y = null, float? z = null, bool isBlackHole = false)
     {
         GameObject particle = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         TrailRenderer trailRenderer = particle.AddComponent<TrailRenderer>();
@@ -183,19 +212,23 @@ public class Simulation : MonoBehaviour
             particle.transform.position = Random.insideUnitSphere * 20;
         }
 
-        Color particleColor = GetStarColor(temperature);
+        Color particleColor = !isBlackHole ? GetStarColor(temperature) : Color.black;
         // Set the color
         Renderer particleRenderer = particle.GetComponent<Renderer>();
-        if (particleRenderer != null)
+        if (!isBlackHole)
         {
             particleRenderer.material.color = particleColor; // Apply color based on mass
             particleRenderer.material.EnableKeyword("_EMISSION"); // Enable emission
             particleRenderer.material.SetColor("_EmissionColor", particleColor); // Set emission color
         }
 
+        if (isBlackHole){
+            particleRenderer.material = Resources.Load<Material>("BlackHole");
+        }
+
         return particle;
     }
- 
+
     bool CheckCollision(ParticleEntity body1, ParticleEntity body2)
     {
         float radiusSum = body1.size.magnitude + body2.size.magnitude;
@@ -203,76 +236,119 @@ public class Simulation : MonoBehaviour
         return distance < radiusSum / 2;
     }
 
-    private void AddParticle(Scene currentScene, Vector3? position = null)
+    private void AddParticle(Scene currentScene, Vector3? position = null, Vector3? velocity = null)
     {
         Star star = GenerateRandomStar();
         Vector3 size = new Vector3(0.1f, 0.1f, 0.1f);
         GameObject particleObject = CreateParticle(size, star.Temperature, position?.x, position?.y, position?.z);
 
         SceneManager.MoveGameObjectToScene(particleObject, currentScene);
-        ParticleEntity particle = new(size, Vector3.zero, star.Mass, star.Temperature, particleObject);
+        ParticleEntity particle = new(size, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject);
         particles.Add(particle);
     }
 
     // Start is called before the first frame update
     void Start()
     {
+        objectInfoObject.SetActive(false);
         particlesCountText.text = "Objects: " + particles.Count.ToString();
         iterationsPerSecText.text = "0it/s";
         yearPassedText.text = yearPassed.ToString() + " Y";
+        newStarVelocityText.text = "v " + _starVelocity.ToString();
         Vector3 centerOfCamera = Camera.main.transform.position;
         Vector3 targetPosition = new Vector3(centerOfCamera.x, centerOfCamera.y, centerOfCamera.z + 5);
         AddParticle(SceneManager.GetActiveScene(), targetPosition);
     }
 
+    private ObjectInfoModel GetObjectInfoModel(ParticleEntity particle)
+    {
+        ObjectInfoModel objectInfoModel = new ObjectInfoModel
+        {
+            Name = particle.name,
+            Type = particle.type,
+            Temperature = particle.temperature,
+            Mass = particle.mass
+        };
+        return objectInfoModel;
+    }
+
     // Update is called once per frame
     void Update()
     {
+        if (particles.Count == 0)
+        {
+            clickToAddParticleText.gameObject.SetActive(true);
+        }
+        else
+        {
+            clickToAddParticleText.gameObject.SetActive(false);
+            yearPassedText.text = yearPassed.ToString() + " Y";
+        }
         if (Input.GetKey(KeyCode.Escape))
         {
-            #if UNITY_EDITOR
+#if UNITY_EDITOR
             // Application.Quit() does not work in the editor so
             // UnityEditor.EditorApplication.isPlaying need to be set to false to end the game
-                UnityEditor.EditorApplication.isPlaying = false;
-            #else
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
                 Application.Quit();
-            #endif
+#endif
         }
 
         if (Input.GetKeyDown(KeyCode.Mouse0))
         {
-            Vector3 mousePosition = Input.mousePosition;   
+            Scene scene = SceneManager.GetActiveScene();
+            Vector3 mousePosition = Input.mousePosition;
             mousePosition.z = Camera.main.nearClipPlane + 1;
-
             Vector3 newParticlePosition = Camera.main.ScreenToWorldPoint(mousePosition);
-            AddParticle(SceneManager.GetActiveScene(), newParticlePosition);
+            if (particles.Count == 0)
+            {
+                AddParticle(scene, newParticlePosition);
+                return;
+            }
+            Vector3 velocity = Camera.main.transform.forward;
+            velocity.z = velocity.z * _starVelocity;
+            AddParticle(scene, newParticlePosition, velocity);
         }
 
-        if (Input.GetKeyDown(KeyCode.Mouse1))
+        if (Input.GetKeyDown(KeyCode.Mouse2))
         {
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             RaycastHit hit;
 
             if (Physics.Raycast(ray, out hit))
             {
-                Debug.Log($"{hit.collider.name} Detected",
-                    hit.collider.gameObject);
+                ParticleEntity particle = particles.Find(p => p.particleObject == hit.collider.gameObject);
+                ObjectInfoModel objectInfoModel = GetObjectInfoModel(particle);
+                lockedParticle = particle;
+                objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
+                objectInfoObject.SetActive(true);
             }
+            else
+            {
+                lockedParticle = null;
+                objectInfoObject.SetActive(false);
+            }
+        }
+
+        if (lockedParticle != null)
+        {
+            Camera.main.transform.LookAt(lockedParticle.position);
         }
 
         _deltaTime = Time.deltaTime / 10;
         SimulateGravity();
 
         particlesCountText.text = "Objects: " + particles.Count.ToString();
-        if(Input.GetKeyDown(KeyCode.Return))
+        // 100 particles
+        if (Input.GetKeyDown(KeyCode.Alpha2))
         {
             Scene currentScene = SceneManager.GetActiveScene();
-            for (int i = 0; i < particlesCount; i++)
-            {
-                AddParticle(currentScene);
-            }
+            Vector3 currentPosition = Camera.main.transform.position;
+            currentPosition.z += 10;
+            CreateCluster(currentScene, currentPosition, 100);
         }
-
+        // 20 particles
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
             Vector3 currentPosition = Camera.main.transform.position;
@@ -280,10 +356,43 @@ public class Simulation : MonoBehaviour
             Scene currentScene = SceneManager.GetActiveScene();
             CreateCluster(currentScene, currentPosition);
         }
+        // 200 particles
+        if(Input.GetKeyDown(KeyCode.Alpha3))
+        {
+            Vector3 currentPosition = Camera.main.transform.position;
+            currentPosition.z += 10;
+            Scene currentScene = SceneManager.GetActiveScene();
+            CreateCluster(currentScene, currentPosition, 200);
+        }
+        // 400 particles
+        if(Input.GetKeyDown(KeyCode.Alpha4))
+        {
+            Vector3 currentPosition = Camera.main.transform.position;
+            currentPosition.z += 10;
+            Scene currentScene = SceneManager.GetActiveScene();
+            CreateCluster(currentScene, currentPosition, 400);
+        }
 
-        if (Input.GetKeyDown(KeyCode.Space))
+        if (Input.GetKeyDown(KeyCode.O))
         {
             showOrbitLines = !showOrbitLines;
+        }
+
+        if (Input.GetKeyDown(KeyCode.Period))
+        {
+            _starVelocity += 1;
+            newStarVelocityText.text = "v " + _starVelocity.ToString();
+        }
+        if (Input.GetKeyDown(KeyCode.Comma))
+        {
+            _starVelocity -= 1;
+            newStarVelocityText.text = "v " + _starVelocity.ToString();
+        }
+
+        if(Input.GetKeyDown(KeyCode.R))
+        {
+            // reset the scene
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
 
         if (Input.GetKeyDown(KeyCode.B))
@@ -304,32 +413,34 @@ public class Simulation : MonoBehaviour
                 }
             }
         }
-
-        yearPassedText.text = yearPassed.ToString() + " Y";
     }
 
     // Simulate gravity
     private void SimulateGravity()
     {
-        Parallel.For(0, particles.Count - 1, i =>
+        Parallel.For(0, particles.Count, i =>
         {
             if (i >= particles.Count) return; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
             ParticleEntity currentEntity = particles[i];
-
-            for (int j = i + 1; j < particles.Count - 1; j++) // Inizia da j = i + 1 per evitare calcoli duplicati e autointerazioni
-            { 
+            int startFrom = particles.Count < 3 ? 0 : i + 1;
+            for (int j = startFrom; j < particles.Count; j++) // Inizia da j = i + 1 per evitare calcoli duplicati e autointerazioni
+            {
+                if (j == i) continue; // Evita l'interazione della particella con se stessa (autointerazione
                 if (j >= particles.Count) break; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+                if (i >= particles.Count) break; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
                 ParticleEntity nextEntity = particles[j];
-
+                if (nextEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+                if (currentEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
                 Vector3 distanceVector = nextEntity.position - currentEntity.position;
                 float distance = distanceVector.magnitude;
                 Vector3 forceDirection = distanceVector.normalized;
-                
-                if (distance > 100) { // Evita calcoli inutili (particelle troppo lontane tra loro)
+
+                if (distance > 100)
+                { // Evita calcoli inutili (particelle troppo lontane tra loro)
                     continue;
-                } 
-               
-                if (CheckCollision(currentEntity, nextEntity) == false)
+                }
+
+                if (!CheckCollision(currentEntity, nextEntity))
                 { // Evita la divisione per zero e l'interazione della particella con se stessa
                     float forceMagnitude = G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
                     Vector3 force = forceDirection * forceMagnitude;
@@ -339,22 +450,37 @@ public class Simulation : MonoBehaviour
 
                     // Update the acceleration of the next entity (in the opposite direction)
                     nextEntity.acceleration -= force / nextEntity.mass;
-                }else{
-                    // Collisione e fusione di particelle
+                }
+                else
+                {
                     float newMass = currentEntity.mass + nextEntity.mass;
                     Vector3 newPosition = (currentEntity.position * currentEntity.mass + nextEntity.position * nextEntity.mass) / (currentEntity.mass + nextEntity.mass);
                     Vector3 newVelocity = (currentEntity.velocity * currentEntity.mass + nextEntity.velocity * nextEntity.mass) / (currentEntity.mass + nextEntity.mass);
                     // Vector3 newSize = currentEntity.size + nextEntity.size;
                     Vector3 newSize = new Vector3(0.1f, 0.1f, 0.1f);
                     float newTemperature = (currentEntity.temperature + nextEntity.temperature) / 2;
-                    UnityMainThreadDispatcher.Instance().Enqueue(() => {
-                        GameObject newParticleObject = CreateParticle(newSize, newTemperature, newPosition.x, newPosition.y, newPosition.z);
-                        ParticleEntity mergedParticle = new(newSize, newVelocity, newMass, newTemperature, newParticleObject);
+                    Star newMergedObject = GetStarTypeByTemperature(newTemperature, newMass);
+                    bool isBlackHole = newMass > BLACK_HOLE_MASS;
+                    string type = !isBlackHole ? newMergedObject.Type : "Black Hole";
+                    UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                    {
+                        GameObject newParticleObject = CreateParticle(newSize, newTemperature, newPosition.x, newPosition.y, newPosition.z, isBlackHole);
+                        ParticleEntity mergedParticle = new(newSize, newVelocity, newMass, newTemperature, type, newParticleObject)
+                        {
+                            isBlackHole = isBlackHole
+                        };
                         particles.Add(mergedParticle);
+                        if (lockedParticle != null)
+                        {
+                            ObjectInfoModel objectInfoModel = GetObjectInfoModel(mergedParticle);
+                            objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
+                            lockedParticle = mergedParticle;
+                        }
                     });
                     particles.Remove(currentEntity);
                     particles.Remove(nextEntity);
-                    UnityMainThreadDispatcher.Instance().Enqueue(() => {
+                    UnityMainThreadDispatcher.Instance().Enqueue(() =>
+                    {
                         Destroy(currentEntity.particleObject);
                         Destroy(nextEntity.particleObject);
                     });
@@ -383,7 +509,7 @@ public class Simulation : MonoBehaviour
         }
 
         yearPassed++;
-        
+
         if (Time.time > nextUpdate)
         {
             nextUpdate = Time.time + 1;
