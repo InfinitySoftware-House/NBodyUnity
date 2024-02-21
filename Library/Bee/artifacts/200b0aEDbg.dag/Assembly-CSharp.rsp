@@ -364,7 +364,9 @@
 -analyzer:"/Applications/Unity/Hub/Editor/2022.3.15f1/Unity.app/Contents/Tools/Unity.SourceGenerators/Unity.SourceGenerators.dll"
 "Assets/Scripts/CameraScript.cs"
 "Assets/Scripts/UnityMainThreadDispatcher.cs"
+"Assets/SimulationScript/BarnesHut.cs"
 "Assets/SimulationScript/ObjectInfo.cs"
+"Assets/SimulationScript/RunBarnesHut.cs"
 "Assets/SimulationScript/Simulation.cs"
 -langversion:9.0
 

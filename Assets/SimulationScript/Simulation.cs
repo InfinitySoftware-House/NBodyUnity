@@ -5,7 +5,6 @@ using TMPro;
 using System.Threading.Tasks;
 using Color = UnityEngine.Color;
 using PimDeWitte.UnityMainThreadDispatcher;
-using UnityEngine.UI;
 
 public class ParticleEntity
 {
@@ -20,7 +19,7 @@ public class ParticleEntity
     public string type;
     public bool isBlackHole = false;
 
-    public ParticleEntity(Vector3 size, Vector3 velocity, float mass, float temperature, string type, GameObject particleObject)
+    public ParticleEntity(Vector3 size, Vector3 velocity, float mass, float temperature, string type, GameObject particleObject, string name = "")
     {
         this.size = size;
         position = particleObject.transform.position;
@@ -30,7 +29,7 @@ public class ParticleEntity
         this.temperature = temperature;
         this.size = size;
         this.type = type;
-        name = RandomNameGenerator(new Star(type, mass, temperature));
+        this.name = string.IsNullOrEmpty(name) ? RandomNameGenerator(new Star(type, mass, temperature, Color.white)) : name;
         isBlackHole = mass > 1000;
     }
     private string RandomNameGenerator(Star star)
@@ -40,8 +39,52 @@ public class ParticleEntity
 
     public void setPosition(Vector3 newPosition)
     {
-        position = newPosition;
-        particleObject.transform.position = newPosition;
+        UnityMainThreadDispatcher.Instance().Enqueue(() =>
+        {
+            position = newPosition;
+            particleObject.transform.position = newPosition;
+        });
+    }
+
+    public void CalculateGravity(ParticleEntity other, float _deltaTime = 0.1f)
+    {
+        float G = 6.67430f;
+        Vector3 distanceVector = other.position - position;
+        float distance = distanceVector.magnitude;
+        Vector3 forceDirection = distanceVector.normalized;
+        float forceMagnitude = G * (this.mass * other.mass) / (distance * distance);
+        Vector3 force = forceDirection * forceMagnitude;
+
+        // Update the acceleration of the current entity
+        acceleration += force / mass;
+
+        // Update the acceleration of the next entity (in the opposite direction)
+        other.acceleration -= force / other.mass;
+
+        velocity += acceleration * _deltaTime;
+
+        setPosition(position + velocity * _deltaTime);
+
+        acceleration = Vector3.zero;
+
+        // Other particle
+        other.velocity += other.acceleration * _deltaTime;
+
+        other.setPosition(other.position + other.velocity * _deltaTime);
+
+        other.acceleration = Vector3.zero;
+    }
+}
+
+public struct Planet 
+{
+    public float Mass; // in Earth masses
+    public Color color;
+
+    public Planet(float mass, Color color)
+    {
+        Mass = mass;
+        this.color = color;
     }
 }
 
@@ -50,12 +93,14 @@ public struct Star
     public string Type;
     public float Mass; // in solar masses
     public float Temperature; // in Kelvin
+    public Color color;
 
-    public Star(string type, float mass, float temperature)
+    public Star(string type, float mass, float temperature, Color color)
     {
         Type = type;
         Mass = mass;
         Temperature = temperature;
+        this.color = color;
     }
 }
 
@@ -78,7 +123,7 @@ public class Simulation : MonoBehaviour
     public GameObject objectInfoObject;
     private int _starVelocity = 10;
     private ParticleEntity lockedParticle;
-    private string[] STAR_TYPE = { "Brown Dwarf", "Red Dwarf", "Orange Dwarf", "Yellow Dwarf", "Yellow-White Dwarf", "White Star", "Blue-White Star", "Blue Star"};
+    private string[] STAR_TYPE = { "Brown Dwarf", "Red Dwarf", "Orange Dwarf", "Yellow Dwarf", "Yellow-White Dwarf", "White Star", "Blue-White Star", "Blue Star" };
     private float BLACK_HOLE_MASS = 1000;
 
     // Method to get the color of a star based on its temperature
@@ -152,8 +197,10 @@ public class Simulation : MonoBehaviour
             x ??= Random.Range(position.x - 10, position.x + 10);
             y ??= Random.Range(position.y - 10, position.y + 10);
             z ??= Random.Range(position.z - 10, position.z + 10);
+            
+            Color color = GetStarColor(star.Temperature);
 
-            GameObject particleObject = CreateParticle(size, star.Temperature, x, y, z);
+            GameObject particleObject = CreateParticle(size, color, x, y, z);
 
             SceneManager.MoveGameObjectToScene(particleObject, currentScene);
             ParticleEntity particle = new(size, Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject);
@@ -170,10 +217,10 @@ public class Simulation : MonoBehaviour
         {
             if (temperature >= tempRanges[i, 0] && temperature <= tempRanges[i, 1] && mass >= massRanges[i, 0] && mass <= massRanges[i, 1])
             {
-                return new Star(STAR_TYPE[i], mass, temperature);
+                return new Star(STAR_TYPE[i], mass, temperature, GetStarColor(temperature));
             }
         }
-        return new Star("Unknown", mass, temperature);
+        return new Star("Unknown", mass, temperature, GetStarColor(temperature));
     }
 
     public Star GenerateRandomStar()
@@ -190,16 +237,18 @@ public class Simulation : MonoBehaviour
         float temperature = Random.Range(tempRanges[typeIndex, 0], tempRanges[typeIndex, 1]);
 
         // Return a new Star object with the generated properties
-        return new Star(selectedType, mass, temperature);
+        return new Star(selectedType, mass, temperature, GetStarColor(temperature));
     }
 
-    GameObject CreateParticle(Vector3 size, float temperature, float? x = null, float? y = null, float? z = null, bool isBlackHole = false)
+    GameObject CreateParticle(Vector3 size, Color color, float? x = null, float? y = null, float? z = null, bool isBlackHole = false, bool isStar = true)
     {
         GameObject particle = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         TrailRenderer trailRenderer = particle.AddComponent<TrailRenderer>();
-        trailRenderer.startWidth = 0.05f;
-        trailRenderer.endWidth = 0.01f;
-        trailRenderer.time = 4f;
+        trailRenderer.startWidth = 0.06f;
+        trailRenderer.endWidth = 0.03f;
+        trailRenderer.time = 6f;
+        trailRenderer.startColor = color;   
+        trailRenderer.endColor = new Color(color.r, color.g, color.b, 0);
         trailRenderer.material = Resources.Load<Material>("OrbitLine");
         particle.transform.localScale = size;
 
@@ -212,17 +261,23 @@ public class Simulation : MonoBehaviour
             particle.transform.position = Random.insideUnitSphere * 20;
         }
 
-        Color particleColor = !isBlackHole ? GetStarColor(temperature) : Color.black;
+        Color particleColor = !isBlackHole ? color : Color.black;
         // Set the color
         Renderer particleRenderer = particle.GetComponent<Renderer>();
-        if (!isBlackHole)
+        if (!isBlackHole && isStar)
         {
             particleRenderer.material.color = particleColor; // Apply color based on mass
             particleRenderer.material.EnableKeyword("_EMISSION"); // Enable emission
             particleRenderer.material.SetColor("_EmissionColor", particleColor); // Set emission color
         }
+        else if (!isStar)
+        {
+            particleRenderer.material.DisableKeyword("_EMISSION");
+            particleRenderer.material.color = particleColor;
+        }
 
-        if (isBlackHole){
+        if (isBlackHole)
+        {
             particleRenderer.material = Resources.Load<Material>("BlackHole");
         }
 
@@ -240,7 +295,8 @@ public class Simulation : MonoBehaviour
     {
         Star star = GenerateRandomStar();
         Vector3 size = new Vector3(0.1f, 0.1f, 0.1f);
-        GameObject particleObject = CreateParticle(size, star.Temperature, position?.x, position?.y, position?.z);
+        Color color = GetStarColor(star.Temperature);
+        GameObject particleObject = CreateParticle(size, color, position?.x, position?.y, position?.z);
 
         SceneManager.MoveGameObjectToScene(particleObject, currentScene);
         ParticleEntity particle = new(size, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject);
@@ -258,6 +314,7 @@ public class Simulation : MonoBehaviour
         Vector3 centerOfCamera = Camera.main.transform.position;
         Vector3 targetPosition = new Vector3(centerOfCamera.x, centerOfCamera.y, centerOfCamera.z + 5);
         AddParticle(SceneManager.GetActiveScene(), targetPosition);
+        // CreateSolarSystem(targetPosition);
     }
 
     private ObjectInfoModel GetObjectInfoModel(ParticleEntity particle)
@@ -306,8 +363,7 @@ public class Simulation : MonoBehaviour
                 AddParticle(scene, newParticlePosition);
                 return;
             }
-            Vector3 velocity = Camera.main.transform.forward;
-            velocity.z = velocity.z * _starVelocity;
+            Vector3 velocity = Vector3.zero;
             AddParticle(scene, newParticlePosition, velocity);
         }
 
@@ -336,7 +392,7 @@ public class Simulation : MonoBehaviour
             Camera.main.transform.LookAt(lockedParticle.position);
         }
 
-        _deltaTime = Time.deltaTime / 10;
+        _deltaTime = Time.deltaTime / 2;
         SimulateGravity();
 
         particlesCountText.text = "Objects: " + particles.Count.ToString();
@@ -357,7 +413,7 @@ public class Simulation : MonoBehaviour
             CreateCluster(currentScene, currentPosition);
         }
         // 200 particles
-        if(Input.GetKeyDown(KeyCode.Alpha3))
+        if (Input.GetKeyDown(KeyCode.Alpha3))
         {
             Vector3 currentPosition = Camera.main.transform.position;
             currentPosition.z += 10;
@@ -365,7 +421,7 @@ public class Simulation : MonoBehaviour
             CreateCluster(currentScene, currentPosition, 200);
         }
         // 400 particles
-        if(Input.GetKeyDown(KeyCode.Alpha4))
+        if (Input.GetKeyDown(KeyCode.Alpha4))
         {
             Vector3 currentPosition = Camera.main.transform.position;
             currentPosition.z += 10;
@@ -389,7 +445,7 @@ public class Simulation : MonoBehaviour
             newStarVelocityText.text = "v " + _starVelocity.ToString();
         }
 
-        if(Input.GetKeyDown(KeyCode.R))
+        if (Input.GetKeyDown(KeyCode.R))
         {
             // reset the scene
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
@@ -425,7 +481,7 @@ public class Simulation : MonoBehaviour
             int startFrom = particles.Count < 3 ? 0 : i + 1;
             for (int j = startFrom; j < particles.Count; j++) // Inizia da j = i + 1 per evitare calcoli duplicati e autointerazioni
             {
-                if (j == i) continue; // Evita l'interazione della particella con se stessa (autointerazione
+                if (j == i) continue; // Evita calcoli duplicati e autointerazioni
                 if (j >= particles.Count) break; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
                 if (i >= particles.Count) break; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
                 ParticleEntity nextEntity = particles[j];
@@ -435,60 +491,27 @@ public class Simulation : MonoBehaviour
                 float distance = distanceVector.magnitude;
                 Vector3 forceDirection = distanceVector.normalized;
 
-                if (distance > 100)
-                { // Evita calcoli inutili (particelle troppo lontane tra loro)
+                if (distance > 100) // Evita calcoli inutili (particelle troppo lontane tra loro)
+                {
                     continue;
                 }
 
                 if (!CheckCollision(currentEntity, nextEntity))
-                { // Evita la divisione per zero e l'interazione della particella con se stessa
+                { 
                     float forceMagnitude = G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
                     Vector3 force = forceDirection * forceMagnitude;
 
                     // Update the acceleration of the current entity
                     currentEntity.acceleration += force / currentEntity.mass;
-
-                    // Update the acceleration of the next entity (in the opposite direction)
-                    nextEntity.acceleration -= force / nextEntity.mass;
                 }
                 else
                 {
-                    float newMass = currentEntity.mass + nextEntity.mass;
-                    Vector3 newPosition = (currentEntity.position * currentEntity.mass + nextEntity.position * nextEntity.mass) / (currentEntity.mass + nextEntity.mass);
-                    Vector3 newVelocity = (currentEntity.velocity * currentEntity.mass + nextEntity.velocity * nextEntity.mass) / (currentEntity.mass + nextEntity.mass);
-                    // Vector3 newSize = currentEntity.size + nextEntity.size;
-                    Vector3 newSize = new Vector3(0.1f, 0.1f, 0.1f);
-                    float newTemperature = (currentEntity.temperature + nextEntity.temperature) / 2;
-                    Star newMergedObject = GetStarTypeByTemperature(newTemperature, newMass);
-                    bool isBlackHole = newMass > BLACK_HOLE_MASS;
-                    string type = !isBlackHole ? newMergedObject.Type : "Black Hole";
-                    UnityMainThreadDispatcher.Instance().Enqueue(() =>
-                    {
-                        GameObject newParticleObject = CreateParticle(newSize, newTemperature, newPosition.x, newPosition.y, newPosition.z, isBlackHole);
-                        ParticleEntity mergedParticle = new(newSize, newVelocity, newMass, newTemperature, type, newParticleObject)
-                        {
-                            isBlackHole = isBlackHole
-                        };
-                        particles.Add(mergedParticle);
-                        if (lockedParticle != null)
-                        {
-                            ObjectInfoModel objectInfoModel = GetObjectInfoModel(mergedParticle);
-                            objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
-                            lockedParticle = mergedParticle;
-                        }
-                    });
-                    particles.Remove(currentEntity);
-                    particles.Remove(nextEntity);
-                    UnityMainThreadDispatcher.Instance().Enqueue(() =>
-                    {
-                        Destroy(currentEntity.particleObject);
-                        Destroy(nextEntity.particleObject);
-                    });
+                    MergeParticle(currentEntity, nextEntity);
                 }
             }
         });
 
-        foreach (ParticleEntity particle in particles)
+        Parallel.ForEach(particles, particle =>
         {
             particle.velocity += particle.acceleration * _deltaTime;
 
@@ -496,17 +519,12 @@ public class Simulation : MonoBehaviour
 
             particle.acceleration = Vector3.zero;
 
-            if (showOrbitLines)
+            UnityMainThreadDispatcher.Instance().Enqueue(() =>
             {
                 TrailRenderer trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
-                trailRenderer.emitting = true;
-            }
-            else
-            {
-                TrailRenderer trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
-                trailRenderer.emitting = false;
-            }
-        }
+                trailRenderer.emitting = showOrbitLines;
+            });
+        });
 
         yearPassed++;
 
@@ -518,6 +536,41 @@ public class Simulation : MonoBehaviour
         }
     }
 
+    void MergeParticle(ParticleEntity currentEntity, ParticleEntity nextEntity)
+    {
+        float newMass = currentEntity.mass + nextEntity.mass;
+        Vector3 newPosition = (currentEntity.position * currentEntity.mass + nextEntity.position * nextEntity.mass) / (currentEntity.mass + nextEntity.mass);
+        Vector3 newVelocity = (currentEntity.velocity * currentEntity.mass + nextEntity.velocity * nextEntity.mass) / (currentEntity.mass + nextEntity.mass);
+        // Vector3 newSize = currentEntity.size + nextEntity.size;
+        Vector3 newSize = new Vector3(0.1f, 0.1f, 0.1f);
+        float newTemperature = (currentEntity.temperature + nextEntity.temperature) / 2;
+        Star newMergedObject = GetStarTypeByTemperature(newTemperature, newMass);
+        bool isBlackHole = newMass > BLACK_HOLE_MASS;
+        string type = !isBlackHole ? newMergedObject.Type : "Black Hole";
+        UnityMainThreadDispatcher.Instance().Enqueue(() =>
+        {
+            GameObject newParticleObject = CreateParticle(newSize, newMergedObject.color, newPosition.x, newPosition.y, newPosition.z, isBlackHole);
+            ParticleEntity mergedParticle = new(newSize, newVelocity, newMass, newTemperature, type, newParticleObject)
+            {
+                isBlackHole = isBlackHole
+            };
+            particles.Add(mergedParticle);
+            if (lockedParticle != null)
+            {
+                ObjectInfoModel objectInfoModel = GetObjectInfoModel(mergedParticle);
+                objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
+                lockedParticle = mergedParticle;
+            }
+        });
+        particles.Remove(currentEntity);
+        particles.Remove(nextEntity);
+        UnityMainThreadDispatcher.Instance().Enqueue(() =>
+        {
+            Destroy(currentEntity.particleObject);
+            Destroy(nextEntity.particleObject);
+        });
+    }
+
     void OnApplicationQuit()
     {
         foreach (ParticleEntity particle in particles)
@@ -526,5 +579,36 @@ public class Simulation : MonoBehaviour
         }
 
         particles.Clear();
+    }
+
+    public void CreateSolarSystem(Vector3 position)
+    {
+        // Sun
+        Star sun = new("Yellow Dwarf", 1, 5778, Color.yellow);
+        Vector3 sunSize = new Vector3(1f, 1f, 1f);
+        GameObject sunObject = CreateParticle(sunSize, sun.color, position.x, position.y, position.z);
+        ParticleEntity sunParticle = new(sunSize, Vector3.zero, sun.Mass, sun.Temperature, sun.Type, sunObject);
+        particles.Add(sunParticle);
+        
+        // Mercury
+        Planet mercury = new(0.000000166f, Color.gray);
+        Vector3 mercurySize = new Vector3(0.2f, 0.2f, 0.2f);
+        GameObject mercuryObject = CreateParticle(mercurySize, mercury.color, position.x + 10f, position.y, position.z, isStar: false);
+        ParticleEntity mercuryParticle = new(mercurySize, new Vector3(0, 0.9f, 0), mercury.Mass, 0, "Planet", mercuryObject, "Mercury");
+        particles.Add(mercuryParticle);
+
+        // Venus
+        Planet venus = new(0.000002447f, Color.yellow);
+        Vector3 venusSize = new Vector3(0.3f, 0.3f, 0.3f);
+        GameObject venusObject = CreateParticle(venusSize, venus.color, position.x + 40f, position.y, position.z, isStar: false);
+        ParticleEntity venusParticle = new(venusSize, new Vector3(0, 0.8f, 0), venus.Mass, 0, "Planet", venusObject, "Venus");
+        particles.Add(venusParticle);
+
+        // // Earth
+        // Planet earth = new(0.000003003f, Color.blue);
+        // Vector3 earthSize = new Vector3(0.3f, 0.3f, 0.3f);
+        // GameObject earthObject = CreateParticle(earthSize, earth.color, position.x + 20f, position.y, position.z, isStar: false);
+        // ParticleEntity earthParticle = new(earthSize, new Vector3(0, 0, 0.3f), earth.Mass, 0, "Planet", earthObject);
+        // particles.Add(earthParticle);
     }
 }
