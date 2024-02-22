@@ -19,11 +19,6 @@ public class ObjectInfo : MonoBehaviour
     public TMP_Text temperatureText;
     public TMP_Text massText;
 
-    // Start is called before the first frame update
-    void Start()
-    {
-    }
-
     // Update is called once per frame
     void Update()
     {
@@ -31,8 +26,8 @@ public class ObjectInfo : MonoBehaviour
         {
             nameText.text = objectInfoModel.Name;
             typeText.text = objectInfoModel.Type;
-            temperatureText.text = objectInfoModel.Temperature.ToString("N0") + " K";
-            massText.text = objectInfoModel.Mass.ToString("N3") + " M";
+            temperatureText.text = objectInfoModel.Temperature.ToString("N0").Replace(",", ".") + " K";
+            massText.text = objectInfoModel.Mass.ToString("F3") + " M";
         }
     }
 
