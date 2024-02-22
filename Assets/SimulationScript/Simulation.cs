@@ -57,7 +57,7 @@ public class ParticleEntity
     }
 }
 
-public struct Planet 
+public struct Planet
 {
     public float Mass; // in Earth masses
     public Color color;
@@ -107,7 +107,7 @@ public class Simulation : MonoBehaviour
     private float BLACK_HOLE_MASS = 1000;
     private bool showKineticEnergy = false;
     public GameObject legendPanel;
-    public AnimationClip mergeAnimation; 
+    public AnimationClip mergeAnimation;
     public AnimatorController animatorController;
 
     // Method to get the color of a star based on its temperature
@@ -181,7 +181,7 @@ public class Simulation : MonoBehaviour
             x ??= Random.Range(position.x - 10, position.x + 10);
             y ??= Random.Range(position.y - 10, position.y + 10);
             z ??= Random.Range(position.z - 10, position.z + 10);
-            
+
             Color color = GetStarColor(star.Temperature);
 
             GameObject particleObject = CreateParticle(size, color, x, y, z);
@@ -197,7 +197,7 @@ public class Simulation : MonoBehaviour
             Vector3 size = new Vector3(0.1f, 0.1f, 0.1f);
             Star star = new Star("Black Hole", BLACK_HOLE_MASS, 1000, Color.black);
             Vector3 massCenter = GetMassCenter();
-            
+
             Color color = GetStarColor(star.Temperature);
 
             GameObject particleObject = CreateParticle(size, color, massCenter.x, massCenter.y, massCenter.z, true, true);
@@ -265,7 +265,7 @@ public class Simulation : MonoBehaviour
         trailRenderer.startWidth = 0.06f;
         trailRenderer.endWidth = 0.03f;
         trailRenderer.time = 6f;
-        trailRenderer.startColor = color;   
+        trailRenderer.startColor = color;
         trailRenderer.endColor = new Color(color.r, color.g, color.b, 0);
         trailRenderer.material = Resources.Load<Material>("OrbitLine");
         particle.transform.localScale = size;
@@ -487,12 +487,12 @@ public class Simulation : MonoBehaviour
             }
         }
 
-        if(Input.GetKeyDown(KeyCode.K))
+        if (Input.GetKeyDown(KeyCode.K))
         {
             showKineticEnergy = !showKineticEnergy;
         }
 
-        if(Input.GetKeyDown(KeyCode.L))
+        if (Input.GetKeyDown(KeyCode.L))
         {
             legendPanel.SetActive(!legendPanel.activeSelf);
         }
@@ -500,7 +500,7 @@ public class Simulation : MonoBehaviour
         //Cluster settings
         if (Input.GetKeyDown(KeyCode.I))
         {
-            
+
         }
     }
 
@@ -535,11 +535,10 @@ public class Simulation : MonoBehaviour
                 }
 
                 if (!CheckCollision(currentEntity, nextEntity))
-                { 
+                {
                     float forceMagnitude = G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
                     Vector3 force = forceDirection * forceMagnitude;
 
-                    // Update the acceleration of the current entity
                     currentEntity.acceleration += force / currentEntity.mass;
                     if (showKineticEnergy)
                     {
@@ -667,7 +666,7 @@ public class Simulation : MonoBehaviour
         GameObject sunObject = CreateParticle(sunSize, sun.color, position.x, position.y, position.z);
         ParticleEntity sunParticle = new(sunSize, Vector3.zero, sun.Mass, sun.Temperature, sun.Type, sunObject);
         particles.Add(sunParticle);
-        
+
         // Mercury
         Planet mercury = new(0.000000166f, Color.gray);
         Vector3 mercurySize = new Vector3(0.2f, 0.2f, 0.2f);
