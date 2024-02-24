@@ -597,6 +597,16 @@ public class Simulation : MonoBehaviour
                 TrailRenderer trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
                 trailRenderer.emitting = showOrbitLines;
                 Renderer particleRenderer = particle.particleObject.GetComponent<Renderer>();
+
+        // Aggiorna lo stato del TrailRenderer in base alla variabile 'showOrbitLines'
+        if (trailRenderer != null)
+        {
+            trailRenderer.emitting = showOrbitLines;
+        }
+
+        // Aggiorna il colore della particella in base alle sue proprietà
+        if (particleRenderer != null)
+        {
                 if (showKineticEnergy)
                 {
                     particleRenderer.material.color = GetKineticEnergyColor(particle.kineticEnergy);
