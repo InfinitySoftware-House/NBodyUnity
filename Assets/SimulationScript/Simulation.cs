@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Color = UnityEngine.Color;
 using PimDeWitte.UnityMainThreadDispatcher;
 using Unity.VisualScripting;
-using UnityEditor.Animations;
 using System.Linq;
 using System;
 using UnityEditor;
@@ -111,14 +110,14 @@ public class Simulation : MonoBehaviour
     private bool showKineticEnergy = false;
     private bool showVelocityColor = false;
     public GameObject legendPanel;
-    public AnimationClip mergeAnimation;
-    public AnimatorController animatorController;
     private Vector3 _particleSize = new Vector3(0.1f, 0.1f, 0.1f);
     public TMP_Text showBloomText;
     public TMP_Text showOrbitLinesText;
     public TMP_Text showKineticEnergyText;
     public TMP_Text showVelocityColorText;
     public OctreeNode root { get; private set; }
+    private bool runSimulation = true;
+    private Vector3? lastCameraPosition = null;
 
     // Method to get the color of a star based on its temperature
     public static Color GetStarColor(float temperature)
@@ -380,6 +379,18 @@ public class Simulation : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        // Check if the camera is moving, if so stop the simulation
+        if (lastCameraPosition != null && lastCameraPosition != Camera.main.transform.position)
+        {
+            runSimulation = false;
+            iterationsPerSecText.text = "Simulation paused";
+        }
+        else
+        {
+            runSimulation = true;
+        }
+        lastCameraPosition = Camera.main.transform.position;
+
         yearPassedText.text = yearPassed.ToString() + " Y";
 
         if (Input.GetKey(KeyCode.Escape))
@@ -387,9 +398,9 @@ public class Simulation : MonoBehaviour
 #if UNITY_EDITOR
             // Application.Quit() does not work in the editor so
             // UnityEditor.EditorApplication.isPlaying need to be set to false to end the game
-            UnityEditor.EditorApplication.isPlaying = false;
+            EditorApplication.isPlaying = false;
 #else
-                Application.Quit();
+            Application.Quit();
 #endif
         }
 
@@ -453,7 +464,8 @@ public class Simulation : MonoBehaviour
 
         _deltaTime = Time.deltaTime / 100;
         // SimulateGravity();
-        SimulateBarnesHut();
+        if (runSimulation)
+            SimulateBarnesHut();
 
         particlesCountText.text = "Objects: " + particles.Length.ToString();
         // 100 particles
@@ -586,7 +598,7 @@ public class Simulation : MonoBehaviour
             // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
             Parallel.ForEach(particles, particle =>
             {
-                particle.acceleration = root.CalculateForceBarnesHut(particle, root, 0.4f);
+                particle.acceleration = root.CalculateForceBarnesHut(particle, root, 0.6f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 UnityMainThreadDispatcher.Instance().Enqueue(() =>
                 {
@@ -738,27 +750,6 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    void RunMergeAnimation(ParticleEntity particle)
-    {
-        Animator animator = particle.particleObject.GetComponent<Animator>();
-        if (animator == null)
-        {
-            animator = particle.particleObject.AddComponent<Animator>();
-        }
-
-        // Create a new AnimationClip and assign it to the Animator
-        if (mergeAnimation != null)
-        {
-            // Ensure there is an AnimatorController
-            if (animator.runtimeAnimatorController == null)
-            {
-                animator.runtimeAnimatorController = animatorController;
-                // execute the merge animation
-                animator.Play(mergeAnimation.name);
-            }
-        }
-    }
-
     Color GetKineticEnergyColor(float kineticEnergy)
     {
         return Color.Lerp(Color.blue, Color.red, kineticEnergy / 1000);
@@ -789,7 +780,6 @@ public class Simulation : MonoBehaviour
                 isBlackHole = isBlackHole
             };
             particles[particles.Length] = mergedParticle;
-            RunMergeAnimation(mergedParticle);
             if (lockedParticle != null)
             {
                 ObjectInfoModel objectInfoModel = GetObjectInfoModel(mergedParticle);
