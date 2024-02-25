@@ -7,7 +7,6 @@ using Color = UnityEngine.Color;
 using PimDeWitte.UnityMainThreadDispatcher;
 using Unity.VisualScripting;
 using System.Linq;
-using System;
 using UnityEditor;
 using Random = UnityEngine.Random;
 
@@ -90,8 +89,8 @@ public struct Star
 public class Simulation : MonoBehaviour
 {
     public GameObject particlePrefab;
-    private ParticleEntity[] particles = new ParticleEntity[0];
-    private readonly float G = 6.6743f * Mathf.Pow(10, -6);
+    private List<ParticleEntity> particles = new List<ParticleEntity>();
+    private readonly float G = 6.67430f;
     private float _deltaTime = 0;
     public TMP_Text particlesCountText;
     public TMP_Text iterationsPerSecText;
@@ -115,9 +114,10 @@ public class Simulation : MonoBehaviour
     public TMP_Text showOrbitLinesText;
     public TMP_Text showKineticEnergyText;
     public TMP_Text showVelocityColorText;
-    public OctreeNode root { get; private set; }
+    public OctreeNode octree { get; private set; }
     private bool runSimulation = true;
     private Vector3? lastCameraPosition = null;
+    private bool isGalaxy = false;
 
     // Method to get the color of a star based on its temperature
     public static Color GetStarColor(float temperature)
@@ -177,17 +177,18 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    private void CreateCluster(Scene currentScene, Vector3 position, int count = 20, bool isGalaxy = true)
+    private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
-        // Vector3 massCenter = position;
-        // AddParticle(currentScene, massCenter, Vector3.zero, mass: 400);
-        ParticleEntity[] newParticles = new ParticleEntity[count];
+        if (isGalaxy){
+            Vector3 massCenter = position;
+            particles.Add(AddParticle(currentScene, massCenter, Vector3.zero, mass: 400));
+        }
         // Create a cluster of particles
         for (int i = 0; i < count; i++)
         {
             Vector3 newPosition;
             if(isGalaxy){
-                float innerRadius = 6f; // Inner radius of the ring
+                float innerRadius = 12f; // Inner radius of the ring
                 float outerRadius = 14f; // Outer radius of the ring
                 float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
 
@@ -200,36 +201,68 @@ public class Simulation : MonoBehaviour
                 newPosition = new Vector3(x, y, z);
             }else{
                 // Randomize position within a rectangular area
-                float minX = position.x - 50f; // Minimum x coordinate of the rectangular area
-                float maxX = position.x + 50f; // Maximum x coordinate of the rectangular area
-                float minY = position.y - 50f; // Minimum y coordinate of the rectangular area
-                float maxY = position.y + 50f; // Maximum y coordinate of the rectangular area
-                float minZ = position.z - 50f; // Minimum z coordinate of the rectangular area
-                float maxZ = position.z + 50f; // Maximum z coordinate of the rectangular area
+                float minX = position.x - 20f; // Minimum x coordinate of the rectangular area
+                float maxX = position.x + 20f; // Maximum x coordinate of the rectangular area
+                float minY = position.y - 20f; // Minimum y coordinate of the rectangular area
+                float maxY = position.y + 20f; // Maximum y coordinate of the rectangular area
+                float minZ = position.z - 20f; // Minimum z coordinate of the rectangular area
+                float maxZ = position.z + 20f; // Maximum z coordinate of the rectangular area
 
                 float x = Random.Range(minX, maxX);
                 float y = Random.Range(minY, maxY);
                 float z = Random.Range(minZ, maxZ);
                 newPosition = new Vector3(x, y, z);
             }
-            // Add particle with the new combined velocity
-            Vector3 velocity = Quaternion.Euler(0, 0, i * 360f / count) * (Random.insideUnitSphere * 10);
-            newParticles[i] = AddParticle(currentScene, newPosition, velocity);
+
+            Vector3 velocity = Vector3.zero;
+            if (isGalaxy){
+                float distance = Vector3.Distance(newPosition, position);
+                float speed = Mathf.Sqrt(G * 400 / distance);
+                Vector3 direction = (position - newPosition).normalized; // Updated to go towards the center
+                velocity = direction * speed;
+            }
+            particles.Add(AddParticle(currentScene, newPosition, velocity));
         }
-        particles = particles.Concat(newParticles).ToArray();
-        CreateOctree();
+    }
+
+    Vector3 GetUniverseSize()
+    {
+        float minX = float.MaxValue;
+        float minY = float.MaxValue;
+        float minZ = float.MaxValue;
+        float maxX = float.MinValue;
+        float maxY = float.MinValue;
+        float maxZ = float.MinValue;
+
+        foreach (ParticleEntity particle in particles)
+        {
+            if (particle.position.x < minX)
+                minX = particle.position.x;
+            if (particle.position.y < minY)
+                minY = particle.position.y;
+            if (particle.position.z < minZ)
+                minZ = particle.position.z;
+            if (particle.position.x > maxX)
+                maxX = particle.position.x;
+            if (particle.position.y > maxY)
+                maxY = particle.position.y;
+            if (particle.position.z > maxZ)
+                maxZ = particle.position.z;
+        }
+
+        return new Vector3(maxX - minX, maxY - minY, maxZ - minZ);
     }
 
     void CreateOctree()
     {
-        if (particles.Length == 0 || root != null) return;        
         Vector3 massCenterForSim = GetMassCenter();
-        root = new OctreeNode(massCenterForSim, 200, G);
+        int universeSize = 1000;
+        octree = new OctreeNode(massCenterForSim, universeSize, G);
 
         // Add all particles to the octree
         foreach (var particle in particles)
         {
-            root.AddParticle(particle);
+            octree.AddParticle(particle);
         }
     }
 
@@ -240,7 +273,7 @@ public class Simulation : MonoBehaviour
         {
             massCenter += particle.position;
         }
-        return massCenter / particles.Length;
+        return massCenter / particles.Count;
     }
 
     public Star GetStarTypeByTemperature(float temperature, float mass, bool isBlackHole = false)
@@ -350,7 +383,7 @@ public class Simulation : MonoBehaviour
     void Start()
     {
         objectInfoObject.SetActive(false);
-        particlesCountText.text = "Objects: " + particles.Length.ToString();
+        particlesCountText.text = "Objects: " + particles.Count.ToString();
         iterationsPerSecText.text = "0it/s";
         yearPassedText.text = yearPassed.ToString() + " Y";
         // newStarVelocityText.text = "v " + _starVelocity.ToString();
@@ -432,7 +465,7 @@ public class Simulation : MonoBehaviour
 
             if (Physics.Raycast(ray, out hit))
             {
-                for (int i = 0; i < particles.Length; i++)
+                for (int i = 0; i < particles.Count; i++)
                 {
                     if (particles[i] == null) continue;
                     if (particles[i].particleObject == hit.collider.gameObject)
@@ -465,9 +498,12 @@ public class Simulation : MonoBehaviour
         _deltaTime = Time.deltaTime / 100;
         // SimulateGravity();
         if (runSimulation)
+        {
+            CreateOctree();
             SimulateBarnesHut();
+        }
 
-        particlesCountText.text = "Objects: " + particles.Length.ToString();
+        particlesCountText.text = "Objects: " + particles.Count.ToString();
         // 100 particles
         if (Input.GetKeyDown(KeyCode.Alpha2))
         {
@@ -516,7 +552,7 @@ public class Simulation : MonoBehaviour
             Vector3 currentPosition = Camera.main.transform.position;
             currentPosition.z += 10;
             Scene currentScene = SceneManager.GetActiveScene();
-            CreateCluster(currentScene, currentPosition, 10000, false);
+            CreateCluster(currentScene, currentPosition, 10000);
         }
 
         if (Input.GetKeyDown(KeyCode.O))
@@ -579,6 +615,12 @@ public class Simulation : MonoBehaviour
             showVelocityColor = !showVelocityColor;
             showVelocityColorText.color = showVelocityColor ? Color.green : Color.white;
         }
+
+        if(Input.GetKeyDown(KeyCode.G)){
+            isGalaxy = !isGalaxy;
+            // Show a message to the user
+            Debug.Log("Galaxy mode: " + (isGalaxy ? "ON" : "OFF"));
+        }
     }
 
     float CalculateKineticEnergy(ParticleEntity particle)
@@ -589,7 +631,7 @@ public class Simulation : MonoBehaviour
     void SimulateBarnesHut()
     {
         // If there are less than 2 particles, simulate gravity with the old method (O(n^2) complexity)
-        if (particles.Length < 2)
+        if (particles.Count < 2)
         {
             SimulateGravity();
         }
@@ -598,7 +640,7 @@ public class Simulation : MonoBehaviour
             // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
             Parallel.ForEach(particles, particle =>
             {
-                particle.acceleration = root.CalculateForceBarnesHut(particle, root, 0.6f);
+                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 0.5f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 UnityMainThreadDispatcher.Instance().Enqueue(() =>
                 {
@@ -654,18 +696,18 @@ public class Simulation : MonoBehaviour
     // Simulate gravity
     private void SimulateGravity()
     {
-        Parallel.For(0, particles.Length, i =>
+        Parallel.For(0, particles.Count, i =>
         {
             try
             {
-                if (i >= particles.Length) return; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+                if (i >= particles.Count) return; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
                 ParticleEntity currentEntity = particles[i];
-                int startFrom = particles.Length < 3 ? 0 : i + 1;
-                for (int j = startFrom; j < particles.Length; j++) // Inizia da j = i + 1 per evitare calcoli duplicati e autointerazioni
+                int startFrom = particles.Count < 3 ? 0 : i + 1;
+                for (int j = startFrom; j < particles.Count; j++) // Inizia da j = i + 1 per evitare calcoli duplicati e autointerazioni
                 {
                     if (j == i) continue; // Evita calcoli duplicati e autointerazioni
-                    if (j >= particles.Length) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-                    if (i >= particles.Length) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+                    if (j >= particles.Count) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+                    if (i >= particles.Count) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
                     ParticleEntity nextEntity = particles[j];
                     if (nextEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
                     if (currentEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
@@ -683,6 +725,7 @@ public class Simulation : MonoBehaviour
                     }
                     else if (distance == 0)
                     {
+                        // MergeParticle(currentEntity, nextEntity);
                         continue;
                     }
                 }
@@ -772,24 +815,24 @@ public class Simulation : MonoBehaviour
         Star newMergedObject = GetStarTypeByTemperature(newTemperature, newMass, isBlackHole);
         string type = isBlackHole ? "Black Hole" : newMergedObject.Type;
         newMergedObject.color = isBlackHole ? Color.black : GetStarColor(newTemperature);
+
         UnityMainThreadDispatcher.Instance().Enqueue(() =>
         {
             GameObject newParticleObject = CreateParticle(newSize, newMergedObject.color, newPosition.x, newPosition.y, newPosition.z, isBlackHole);
-            ParticleEntity mergedParticle = new(newSize, newVelocity, newMass, newTemperature, type, newParticleObject)
+            ParticleEntity mergedParticle = new ParticleEntity(newSize, newVelocity, newMass, newTemperature, type, newParticleObject)
             {
                 isBlackHole = isBlackHole
             };
-            particles[particles.Length] = mergedParticle;
+            particles = particles.Where(p => p != currentEntity && p != nextEntity).ToList();
+            particles.Add(mergedParticle);
+
             if (lockedParticle != null)
             {
                 ObjectInfoModel objectInfoModel = GetObjectInfoModel(mergedParticle);
                 objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
                 lockedParticle = mergedParticle;
             }
-        });
-        particles = particles.Where(p => p != currentEntity && p != nextEntity).ToArray();
-        UnityMainThreadDispatcher.Instance().Enqueue(() =>
-        {
+
             if (currentEntity.particleObject != null && !currentEntity.particleObject.IsDestroyed())
                 Destroy(currentEntity.particleObject);
             if (nextEntity.particleObject != null && !nextEntity.particleObject.IsDestroyed())
