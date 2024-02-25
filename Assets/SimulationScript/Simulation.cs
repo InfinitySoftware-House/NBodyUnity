@@ -9,6 +9,7 @@ using Unity.VisualScripting;
 using System.Linq;
 using UnityEditor;
 using Random = UnityEngine.Random;
+using System.Collections;
 
 public class ParticleEntity
 {
@@ -118,6 +119,7 @@ public class Simulation : MonoBehaviour
     private bool runSimulation = true;
     private Vector3? lastCameraPosition = null;
     private bool isGalaxy = false;
+    private bool showMass = false;
 
     // Method to get the color of a star based on its temperature
     public static Color GetStarColor(float temperature)
@@ -216,10 +218,7 @@ public class Simulation : MonoBehaviour
 
             Vector3 velocity = Vector3.zero;
             if (isGalaxy){
-                float distance = Vector3.Distance(newPosition, position);
-                float speed = Mathf.Sqrt(G * 400 / distance);
-                Vector3 direction = (position - newPosition).normalized; // Updated to go towards the center
-                velocity = direction * speed;
+                velocity.z = 10f;
             }
             particles.Add(AddParticle(currentScene, newPosition, velocity));
         }
@@ -413,10 +412,12 @@ public class Simulation : MonoBehaviour
     void Update()
     {
         // Check if the camera is moving, if so stop the simulation
-        if (lastCameraPosition != null && lastCameraPosition != Camera.main.transform.position)
+        if (lastCameraPosition != null && lastCameraPosition != Camera.main.transform.position && runSimulation)
         {
             runSimulation = false;
             iterationsPerSecText.text = "Simulation paused";
+            lockedParticle = null;
+            objectInfoObject.SetActive(false);
         }
         else
         {
@@ -437,50 +438,26 @@ public class Simulation : MonoBehaviour
 #endif
         }
 
-        // if (Input.GetKeyDown(KeyCode.Mouse0))
-        // {
-        //     CreateOctree();
-        //     Scene scene = SceneManager.GetActiveScene();
-        //     Vector3 mousePosition = Input.mousePosition;
-        //     mousePosition.z = Camera.main.nearClipPlane + 0.1f;
-        //     Vector3 newParticlePosition = Camera.main.ScreenToWorldPoint(mousePosition);
-        //     if (particles.Length == 0)
-        //     {
-        //         ParticleEntity newParticle1 = AddParticle(scene, newParticlePosition);
-        //         ArrayUtility.Add(ref particles, newParticle1);
-        //         return;
-        //     }
-
-        //     Vector3 cameraForward = Camera.main.transform.forward;
-        //     Vector3 velocity = cameraForward.normalized;
-        //     velocity *= _starVelocity / 10;
-        //     ParticleEntity newParticle2 = AddParticle(scene, newParticlePosition, velocity);
-        //     ArrayUtility.Add(ref particles, newParticle2);
-        // }
-
-        if (Input.GetKeyDown(KeyCode.Mouse2))
+        if (Input.GetKeyDown(KeyCode.Mouse0))
         {
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             RaycastHit hit;
 
             if (Physics.Raycast(ray, out hit))
             {
-                for (int i = 0; i < particles.Count; i++)
+                ParticleEntity selectedParticle = particles.FirstOrDefault(p => p.particleObject == hit.collider.gameObject);
+                if (selectedParticle != null)
                 {
-                    if (particles[i] == null) continue;
-                    if (particles[i].particleObject == hit.collider.gameObject)
-                    {
-                        ParticleEntity particle = particles[i];
-                        ObjectInfoModel objectInfoModel = GetObjectInfoModel(particle);
-                        lockedParticle = particle;
-                        objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
-                        objectInfoObject.SetActive(true);
-                    }
-                    else
-                    {
-                        lockedParticle = null;
-                        objectInfoObject.SetActive(false);
-                    }
+                    ParticleEntity particle = selectedParticle;
+                    ObjectInfoModel objectInfoModel = GetObjectInfoModel(particle);
+                    lockedParticle = particle;
+                    objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
+                    objectInfoObject.SetActive(true);
+                }
+                else
+                {
+                    lockedParticle = null;
+                    objectInfoObject.SetActive(false);
                 }
             }
             else
@@ -492,15 +469,17 @@ public class Simulation : MonoBehaviour
 
         if (lockedParticle != null)
         {
-            Camera.main.transform.LookAt(lockedParticle.position);
+            // Call the coroutine to animate the LookAt function
+            StartCoroutine(AnimateLookAt(lockedParticle.particleObject.transform));
         }
 
         _deltaTime = Time.deltaTime / 100;
-        // SimulateGravity();
+
         if (runSimulation)
         {
             CreateOctree();
             SimulateBarnesHut();
+            yearPassed += 1;
         }
 
         particlesCountText.text = "Objects: " + particles.Count.ToString();
@@ -577,6 +556,16 @@ public class Simulation : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R))
         {
             // reset the scene
+            // destroy all particles
+            foreach (ParticleEntity particle in particles)
+            {
+                if (particle != null && particle.particleObject != null && !particle.particleObject.IsDestroyed())
+                    Destroy(particle.particleObject);
+            }
+            // garbage collect
+            particles = null;
+            // create a new list of particles
+            particles = new List<ParticleEntity>();
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
 
@@ -616,6 +605,11 @@ public class Simulation : MonoBehaviour
             showVelocityColorText.color = showVelocityColor ? Color.green : Color.white;
         }
 
+        if(Input.GetKeyDown(KeyCode.M))
+        {
+            showMass = !showMass;
+        }
+
         if(Input.GetKeyDown(KeyCode.G)){
             isGalaxy = !isGalaxy;
             // Show a message to the user
@@ -623,20 +617,42 @@ public class Simulation : MonoBehaviour
         }
     }
 
+    IEnumerator AnimateLookAt(Transform target)
+    {
+        float duration = 1.0f; // Animation duration in seconds
+        float elapsedTime = 0.0f;
+        Quaternion startRotation = Camera.main.transform.rotation;
+        Quaternion targetRotation = Quaternion.LookRotation(target.position - Camera.main.transform.position);
+
+        while (elapsedTime < duration)
+        {
+            Camera.main.transform.rotation = Quaternion.Slerp(startRotation, targetRotation, elapsedTime / duration);
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        Camera.main.transform.rotation = targetRotation;
+    }
+
     float CalculateKineticEnergy(ParticleEntity particle)
     {
         return 0.5f * particle.mass * particle.velocity.sqrMagnitude;
     }
 
+    Color GetMassColor(float mass)
+    {
+        return Color.Lerp(Color.blue, Color.red, mass / 1000);
+    }
+
     void SimulateBarnesHut()
     {
         // If there are less than 2 particles, simulate gravity with the old method (O(n^2) complexity)
-        if (particles.Count < 2)
-        {
-            SimulateGravity();
-        }
-        else
-        {
+        // if (particles.Count < 2)
+        // {
+        //     SimulateGravity();
+        // }
+        // else
+        // {
             // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
             Parallel.ForEach(particles, particle =>
             {
@@ -671,6 +687,12 @@ public class Simulation : MonoBehaviour
                             if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
                                 particleRenderer.material.DisableKeyword("_EMISSION");
                         }
+                        else if (showMass)
+                        {
+                            particleRenderer.material.color = GetMassColor(particle.temperature);
+                            if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+                                particleRenderer.material.EnableKeyword("_EMISSION");
+                        }
                         else
                         {
                             particleRenderer.material.color = GetStarColor(particle.temperature);
@@ -678,7 +700,6 @@ public class Simulation : MonoBehaviour
                                 particleRenderer.material.EnableKeyword("_EMISSION");
                         }
                     }
-                    yearPassed = (int)Time.realtimeSinceStartup * 10;
 
                     if (Time.time > nextUpdate)
                     {
@@ -689,7 +710,7 @@ public class Simulation : MonoBehaviour
                 });
                 particle.acceleration = Vector3.zero;
             });
-        }
+        // }
     }
 
 
@@ -782,8 +803,6 @@ public class Simulation : MonoBehaviour
                 }
             });
         });
-
-        yearPassed = (int)Time.realtimeSinceStartup * 10;
 
         if (Time.time > nextUpdate)
         {
