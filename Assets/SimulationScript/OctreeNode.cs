@@ -111,9 +111,9 @@ public class OctreeNode
         if (node.particles.Count == 1 && node.particles[0] != particle)
         {
             // Calcola la forza diretta tra la particella e la particella nel nodo
-            Vector3 direction = node.centerOfMass - particle.position;
+            Vector3 direction = node.particles[0].position - particle.position;
             float distanceSquared = direction.sqrMagnitude + softeningSquared; // softening per evitare forze infinite
-            float forceMagnitude = G * particle.mass * node.totalMass / distanceSquared;
+            float forceMagnitude = G * particle.mass * node.particles[0].mass / distanceSquared;
             force = direction.normalized * forceMagnitude;
         }
         else if (node.size / Vector3.Distance(particle.position, node.centerOfMass) < theta)

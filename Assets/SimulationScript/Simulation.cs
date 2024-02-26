@@ -17,7 +17,7 @@ public class Simulation : MonoBehaviour
 {
     public GameObject particlePrefab;
     private List<ParticleEntity> particles = new List<ParticleEntity>();
-    private readonly float G = 6.67430f;
+    private readonly float G = 6.67430f; // Gravitational constant
     private float _deltaTime = 0;
     public TMP_Text particlesCountText;
     public TMP_Text iterationsPerSecText;
@@ -43,7 +43,6 @@ public class Simulation : MonoBehaviour
     public TMP_Text showVelocityColorText;
     public OctreeNode octree { get; private set; }
     private bool runSimulation = true;
-    private Vector3? lastCameraPosition = null;
     private bool isGalaxy = false;
     private bool showMass = false;
     public bool isMainMenu = false;
@@ -130,12 +129,13 @@ public class Simulation : MonoBehaviour
                 newPosition = new Vector3(x, y, z);
             }else{
                 // Randomize position within a rectangular area
-                float minX = position.x - 20f; // Minimum x coordinate of the rectangular area
-                float maxX = position.x + 20f; // Maximum x coordinate of the rectangular area
-                float minY = position.y - 20f; // Minimum y coordinate of the rectangular area
-                float maxY = position.y + 20f; // Maximum y coordinate of the rectangular area
-                float minZ = position.z - 20f; // Minimum z coordinate of the rectangular area
-                float maxZ = position.z + 20f; // Maximum z coordinate of the rectangular area
+                float multiplier = count / 100f;
+                float minX = position.x - multiplier; // Minimum x coordinate of the rectangular area
+                float maxX = position.x + multiplier; // Maximum x coordinate of the rectangular area
+                float minY = position.y - multiplier; // Minimum y coordinate of the rectangular area
+                float maxY = position.y + multiplier; // Maximum y coordinate of the rectangular area
+                float minZ = position.z - multiplier; // Minimum z coordinate of the rectangular area
+                float maxZ = position.z + multiplier; // Maximum z coordinate of the rectangular area
 
                 float x = Random.Range(minX, maxX);
                 float y = Random.Range(minY, maxY);
@@ -150,35 +150,6 @@ public class Simulation : MonoBehaviour
             particles.Add(AddParticle(currentScene, newPosition, velocity));
         }
     }
-
-    private Vector3 GetUniverseSize()
-    {
-        float minX = float.MaxValue;
-        float minY = float.MaxValue;
-        float minZ = float.MaxValue;
-        float maxX = float.MinValue;
-        float maxY = float.MinValue;
-        float maxZ = float.MinValue;
-
-        foreach (ParticleEntity particle in particles)
-        {
-            if (particle.position.x < minX)
-                minX = particle.position.x;
-            if (particle.position.y < minY)
-                minY = particle.position.y;
-            if (particle.position.z < minZ)
-                minZ = particle.position.z;
-            if (particle.position.x > maxX)
-                maxX = particle.position.x;
-            if (particle.position.y > maxY)
-                maxY = particle.position.y;
-            if (particle.position.z > maxZ)
-                maxZ = particle.position.z;
-        }
-
-        return new Vector3(maxX - minX, maxY - minY, maxZ - minZ);
-    }
-
     private void CreateOctree()
     {
         Vector3 massCenterForSim = GetMassCenter();
@@ -363,24 +334,11 @@ public class Simulation : MonoBehaviour
                     lockedParticle = particle;
                     objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
                     objectInfoObject.SetActive(true);
-
-                    // Add crosshair to the selected particle
-                    GameObject crosshairPrefab = Resources.Load<GameObject>("CrosshairPrefab");
-                    crosshairPrefab.name = "CrosshairPrefab";
-                    GameObject crosshair = Instantiate(crosshairPrefab, particle.particleObject.transform.position, Quaternion.identity);
-                    crosshair.transform.SetParent(particle.particleObject.transform);
-                    crosshair.transform.LookAt(lockedParticle.particleObject.transform);
                 }
                 else
                 {
                     lockedParticle = null;
                     objectInfoObject.SetActive(false);
-                    // Remove crosshair from the previously selected particle
-                    GameObject crosshair = GameObject.Find("CrosshairPrefab");
-                    if (crosshair != null)
-                    {
-                        Destroy(crosshair);
-                    }
                 }
             }
             else
