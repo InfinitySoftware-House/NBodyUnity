@@ -10,82 +10,8 @@ using System.Linq;
 using UnityEditor;
 using Random = UnityEngine.Random;
 using System.Collections;
+using System;
 
-public class ParticleEntity
-{
-    public string name;
-    public Vector3 position;
-    public float mass;
-    public Vector3 acceleration = Vector3.zero;
-    public Vector3 velocity = Vector3.zero;
-    public float temperature = 0;
-    public Vector3 size;
-    public GameObject particleObject;
-    public string type;
-    public bool isBlackHole = false;
-    public float kineticEnergy;
-
-    public ParticleEntity(Vector3 size, Vector3 velocity, float mass, float temperature, string type, GameObject particleObject, string name = "")
-    {
-        this.size = size;
-        position = particleObject.transform.position;
-        this.mass = mass;
-        this.velocity = velocity;
-        this.particleObject = particleObject;
-        this.temperature = temperature;
-        this.size = size;
-        this.type = type;
-        this.name = string.IsNullOrEmpty(name) ? RandomNameGenerator() : name;
-        isBlackHole = mass >= 1000;
-    }
-    private string RandomNameGenerator()
-    {
-        string[] prefixes = { "Al", "Bet", "Sir", "Veg", "Rig", "Prox", "Cap", "Veg", "Can", "Poll" };
-        string[] middles = { "tar", "gol", "nix", "phar", "lux", "crix", "bell", "dor", "hul", "mir" };
-        string[] suffixes = { "us", "a", "ion", "en", "ar", "os", "ra", "is", "es", "ia" };
-        string[] romanNumerals = { "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X" };
-        string[] greekLetters = { "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota", "Kappa" };
-
-        return prefixes[Random.Range(0, prefixes.Length)] + middles[Random.Range(0, middles.Length)] + suffixes[Random.Range(0, suffixes.Length)] + " " + (Random.Range(0, 2) == 0 ? romanNumerals[Random.Range(0, romanNumerals.Length)] : greekLetters[Random.Range(0, greekLetters.Length)]);
-    }
-
-    public void setPosition(Vector3 newPosition)
-    {
-        UnityMainThreadDispatcher.Instance().Enqueue(() =>
-        {
-            position = newPosition;
-            particleObject.transform.position = newPosition;
-        });
-    }
-}
-
-public struct Planet
-{
-    public float Mass; // in Earth masses
-    public Color color;
-
-    public Planet(float mass, Color color)
-    {
-        Mass = mass;
-        this.color = color;
-    }
-}
-
-public struct Star
-{
-    public string Type;
-    public float Mass; // in solar masses
-    public float Temperature; // in Kelvin
-    public Color color;
-
-    public Star(string type, float mass, float temperature, Color color)
-    {
-        Type = type;
-        Mass = mass;
-        Temperature = temperature;
-        this.color = color;
-    }
-}
 
 public class Simulation : MonoBehaviour
 {
@@ -120,6 +46,7 @@ public class Simulation : MonoBehaviour
     private Vector3? lastCameraPosition = null;
     private bool isGalaxy = false;
     private bool showMass = false;
+    public bool isMainMenu = false;
 
     // Method to get the color of a star based on its temperature
     public static Color GetStarColor(float temperature)
@@ -183,7 +110,7 @@ public class Simulation : MonoBehaviour
     {
         if (isGalaxy){
             Vector3 massCenter = position;
-            particles.Add(AddParticle(currentScene, massCenter, Vector3.zero, mass: 400));
+            particles.Add(AddParticle(currentScene, massCenter, Vector3.zero, mass: 1000));
         }
         // Create a cluster of particles
         for (int i = 0; i < count; i++)
@@ -218,13 +145,13 @@ public class Simulation : MonoBehaviour
 
             Vector3 velocity = Vector3.zero;
             if (isGalaxy){
-                velocity.z = 10f;
+                velocity.x = 6f;
             }
             particles.Add(AddParticle(currentScene, newPosition, velocity));
         }
     }
 
-    Vector3 GetUniverseSize()
+    private Vector3 GetUniverseSize()
     {
         float minX = float.MaxValue;
         float minY = float.MaxValue;
@@ -252,7 +179,7 @@ public class Simulation : MonoBehaviour
         return new Vector3(maxX - minX, maxY - minY, maxZ - minZ);
     }
 
-    void CreateOctree()
+    private void CreateOctree()
     {
         Vector3 massCenterForSim = GetMassCenter();
         int universeSize = 1000;
@@ -306,7 +233,7 @@ public class Simulation : MonoBehaviour
         return new Star(selectedType, mass, temperature, isBlackHole ? Color.black : GetStarColor(temperature));
     }
 
-    GameObject CreateParticle(Vector3 size, Color color, float? x = null, float? y = null, float? z = null, bool isBlackHole = false, bool isStellar = true)
+    private GameObject CreateParticle(Vector3 size, Color color, float? x = null, float? y = null, float? z = null, bool isBlackHole = false, bool isStellar = true)
     {
         GameObject particle;
         if (isBlackHole)
@@ -361,7 +288,7 @@ public class Simulation : MonoBehaviour
         return particle;
     }
 
-    bool CheckCollision(ParticleEntity body1, ParticleEntity body2)
+    private bool CheckCollision(ParticleEntity body1, ParticleEntity body2)
     {
         float radiusSum = body1.size.magnitude + body2.size.magnitude;
         float distance = Vector3.Distance(body1.position, body2.position);
@@ -379,63 +306,46 @@ public class Simulation : MonoBehaviour
     }
 
     // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
         objectInfoObject.SetActive(false);
         particlesCountText.text = "Objects: " + particles.Count.ToString();
         iterationsPerSecText.text = "0it/s";
         yearPassedText.text = yearPassed.ToString() + " Y";
         // newStarVelocityText.text = "v " + _starVelocity.ToString();
-        Vector3 centerOfCamera = Camera.main.transform.position;
-        Vector3 targetPosition = new Vector3(centerOfCamera.x, centerOfCamera.y, centerOfCamera.z + 1);
-        // AddParticle(SceneManager.GetActiveScene(), targetPosition);
-
         showBloomText.color = showBloom ? Color.green : Color.white;
         showOrbitLinesText.color = showOrbitLines ? Color.green : Color.white;
         showKineticEnergyText.color = showKineticEnergy ? Color.green : Color.white;
         showVelocityColorText.color = showVelocityColor ? Color.green : Color.white;
     }
 
-    ObjectInfoModel GetObjectInfoModel(ParticleEntity particle)
+    private ObjectInfoModel GetObjectInfoModel(ParticleEntity particle)
     {
         ObjectInfoModel objectInfoModel = new ObjectInfoModel
         {
             Name = particle.name,
             Type = particle.type,
             Temperature = particle.temperature,
-            Mass = particle.mass
+            Mass = particle.mass,
+            Position = particle.position
         };
         return objectInfoModel;
     }
 
     // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        // Check if the camera is moving, if so stop the simulation
-        if (lastCameraPosition != null && lastCameraPosition != Camera.main.transform.position && runSimulation)
-        {
-            runSimulation = false;
-            iterationsPerSecText.text = "Simulation paused";
-            lockedParticle = null;
-            objectInfoObject.SetActive(false);
-        }
-        else
-        {
-            runSimulation = true;
-        }
-        lastCameraPosition = Camera.main.transform.position;
-
         yearPassedText.text = yearPassed.ToString() + " Y";
 
-        if (Input.GetKey(KeyCode.Escape))
+        if (Input.GetKeyDown(KeyCode.Escape))
         {
-#if UNITY_EDITOR
-            // Application.Quit() does not work in the editor so
-            // UnityEditor.EditorApplication.isPlaying need to be set to false to end the game
-            EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
+            // Show the main menu
+            SceneManager.LoadScene("MainMenu", LoadSceneMode.Single);
+        }
+
+        if(Input.GetKeyDown(KeyCode.Space)){
+            runSimulation = !runSimulation;
+            iterationsPerSecText.color = runSimulation ? Color.white : Color.red;
         }
 
         if (Input.GetKeyDown(KeyCode.Mouse0))
@@ -453,11 +363,24 @@ public class Simulation : MonoBehaviour
                     lockedParticle = particle;
                     objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
                     objectInfoObject.SetActive(true);
+
+                    // Add crosshair to the selected particle
+                    GameObject crosshairPrefab = Resources.Load<GameObject>("CrosshairPrefab");
+                    crosshairPrefab.name = "CrosshairPrefab";
+                    GameObject crosshair = Instantiate(crosshairPrefab, particle.particleObject.transform.position, Quaternion.identity);
+                    crosshair.transform.SetParent(particle.particleObject.transform);
+                    crosshair.transform.LookAt(lockedParticle.particleObject.transform);
                 }
                 else
                 {
                     lockedParticle = null;
                     objectInfoObject.SetActive(false);
+                    // Remove crosshair from the previously selected particle
+                    GameObject crosshair = GameObject.Find("CrosshairPrefab");
+                    if (crosshair != null)
+                    {
+                        Destroy(crosshair);
+                    }
                 }
             }
             else
@@ -469,8 +392,11 @@ public class Simulation : MonoBehaviour
 
         if (lockedParticle != null)
         {
+            // Update locked particle position
+            ObjectInfoModel objectInfoModel = GetObjectInfoModel(lockedParticle);
+            objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
             // Call the coroutine to animate the LookAt function
-            StartCoroutine(AnimateLookAt(lockedParticle.particleObject.transform));
+            Camera.main.transform.LookAt(lockedParticle.particleObject.transform);
         }
 
         _deltaTime = Time.deltaTime / 100;
@@ -480,6 +406,10 @@ public class Simulation : MonoBehaviour
             CreateOctree();
             SimulateBarnesHut();
             yearPassed += 1;
+        }
+        else
+        {
+            iterationsPerSecText.text = "Simulation paused";
         }
 
         particlesCountText.text = "Objects: " + particles.Count.ToString();
@@ -615,106 +545,97 @@ public class Simulation : MonoBehaviour
             // Show a message to the user
             Debug.Log("Galaxy mode: " + (isGalaxy ? "ON" : "OFF"));
         }
-    }
 
-    IEnumerator AnimateLookAt(Transform target)
-    {
-        float duration = 1.0f; // Animation duration in seconds
-        float elapsedTime = 0.0f;
-        Quaternion startRotation = Camera.main.transform.rotation;
-        Quaternion targetRotation = Quaternion.LookRotation(target.position - Camera.main.transform.position);
-
-        while (elapsedTime < duration)
+        // Garbage collect every 1000 iterations
+        if (yearPassed % 1000 == 0 && particles.Count > 1000)
         {
-            Camera.main.transform.rotation = Quaternion.Slerp(startRotation, targetRotation, elapsedTime / duration);
-            elapsedTime += Time.deltaTime;
-            yield return null;
+            GC.Collect();
         }
-
-        Camera.main.transform.rotation = targetRotation;
     }
 
-    float CalculateKineticEnergy(ParticleEntity particle)
+    private float CalculateKineticEnergy(ParticleEntity particle)
     {
         return 0.5f * particle.mass * particle.velocity.sqrMagnitude;
     }
 
-    Color GetMassColor(float mass)
+    private Color GetMassColor(float mass)
     {
         return Color.Lerp(Color.blue, Color.red, mass / 1000);
     }
 
-    void SimulateBarnesHut()
+    // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
+    private void SimulateBarnesHut()
     {
-        // If there are less than 2 particles, simulate gravity with the old method (O(n^2) complexity)
-        // if (particles.Count < 2)
-        // {
-        //     SimulateGravity();
-        // }
-        // else
-        // {
-            // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
+        try
+        {
+            TrailRenderer trailRenderer;
+            Renderer particleRenderer;
+
             Parallel.ForEach(particles, particle =>
             {
                 particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 0.5f);
                 particle.velocity += particle.acceleration * _deltaTime;
-                UnityMainThreadDispatcher.Instance().Enqueue(() =>
-                {
-                    particle.setPosition(particle.position + particle.velocity * _deltaTime);
-                    TrailRenderer trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
-                    trailRenderer.emitting = showOrbitLines;
-                    Renderer particleRenderer = particle.particleObject.GetComponent<Renderer>();
-
-                    // Aggiorna lo stato del TrailRenderer in base alla variabile 'showOrbitLines'
-                    if (trailRenderer != null)
-                    {
-                        trailRenderer.emitting = showOrbitLines;
-                    }
-
-                    // Aggiorna il colore della particella in base alle sue proprietà
-                    if (particleRenderer != null)
-                    {
-                        if (showKineticEnergy)
-                        {
-                            particle.kineticEnergy = CalculateKineticEnergy(particle);
-                            particleRenderer.material.color = GetKineticEnergyColor(particle.kineticEnergy);
-                            if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                                particleRenderer.material.DisableKeyword("_EMISSION");
-                        }
-                        else if (showVelocityColor)
-                        {
-                            particleRenderer.material.color = GetVelocityColor(particle.velocity);
-                            if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                                particleRenderer.material.DisableKeyword("_EMISSION");
-                        }
-                        else if (showMass)
-                        {
-                            particleRenderer.material.color = GetMassColor(particle.temperature);
-                            if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                                particleRenderer.material.EnableKeyword("_EMISSION");
-                        }
-                        else
-                        {
-                            particleRenderer.material.color = GetStarColor(particle.temperature);
-                            if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                                particleRenderer.material.EnableKeyword("_EMISSION");
-                        }
-                    }
-
-                    if (Time.time > nextUpdate)
-                    {
-                        nextUpdate = Time.time + 1;
-                        iterationsPerSec = 1 / Time.deltaTime;
-                        iterationsPerSecText.text = iterationsPerSec.ToString("F0") + "it/s";
-                    }
-                });
                 particle.acceleration = Vector3.zero;
             });
-        // }
+
+            for (int i = 0; i < particles.Count; i++)
+            {
+                ParticleEntity particle = particles[i];
+                particle.SetPosition(particle.position + particle.velocity * _deltaTime);
+
+                // Cache components
+                trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
+                particleRenderer = particle.particleObject.GetComponent<Renderer>();
+
+                // Aggiorna lo stato del TrailRenderer in base alla variabile 'showOrbitLines'
+                if (trailRenderer != null)
+                {
+                    trailRenderer.emitting = showOrbitLines;
+                }
+
+                // Aggiorna il colore della particella in base alle sue proprietà
+                if (particleRenderer != null)
+                {
+                    Color particleColor;
+                    if (showKineticEnergy)
+                    {
+                        particle.kineticEnergy = CalculateKineticEnergy(particle);
+                        particleColor = GetKineticEnergyColor(particle.kineticEnergy);
+                        if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+                            particleRenderer.material.DisableKeyword("_EMISSION");
+                    }
+                    else if (showVelocityColor)
+                    {
+                        particleColor = GetVelocityColor(particle.velocity);
+                        if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+                            particleRenderer.material.DisableKeyword("_EMISSION");
+                    }
+                    else
+                    {
+                        particleColor = GetStarColor(particle.temperature);
+                        if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+                            particleRenderer.material.EnableKeyword("_EMISSION");
+                    }
+
+                    particleRenderer.material.color = particleColor;
+                }
+            }
+
+            if (Time.time > nextUpdate)
+            {
+                nextUpdate = Time.time + 1;
+                iterationsPerSec = 1 / Time.deltaTime;
+                iterationsPerSecText.text = iterationsPerSec.ToString("F0") + "it/s";
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.Log(e);
+            throw;
+        }
     }
 
-
-    // Simulate gravity
+    // Simulate gravity O(n^2) complexity
     private void SimulateGravity()
     {
         Parallel.For(0, particles.Count, i =>
@@ -762,7 +683,7 @@ public class Simulation : MonoBehaviour
             if (particle == null) return;
             particle.velocity += particle.acceleration * _deltaTime;
 
-            particle.setPosition(particle.position + particle.velocity * _deltaTime);
+            particle.SetPosition(particle.position + particle.velocity * _deltaTime);
 
             particle.acceleration = Vector3.zero;
 
@@ -812,18 +733,18 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    Color GetKineticEnergyColor(float kineticEnergy)
+    private Color GetKineticEnergyColor(float kineticEnergy)
     {
         return Color.Lerp(Color.blue, Color.red, kineticEnergy / 1000);
     }
 
-    Color GetVelocityColor(Vector3 velocity)
+    private Color GetVelocityColor(Vector3 velocity)
     {
         float speed = velocity.magnitude;
         return Color.Lerp(Color.blue, Color.red, speed / 100);
     }
 
-    void MergeParticle(ParticleEntity currentEntity, ParticleEntity nextEntity)
+    private void MergeParticle(ParticleEntity currentEntity, ParticleEntity nextEntity)
     {
         float newMass = currentEntity.mass + nextEntity.mass;
         Vector3 newPosition = (currentEntity.position * currentEntity.mass + nextEntity.position * nextEntity.mass) / (currentEntity.mass + nextEntity.mass);
@@ -859,7 +780,7 @@ public class Simulation : MonoBehaviour
         });
     }
 
-    void OnApplicationQuit()
+    private void OnApplicationQuit()
     {
         foreach (ParticleEntity particle in particles)
         {
@@ -869,140 +790,4 @@ public class Simulation : MonoBehaviour
 
         particles = null;
     }
-}
-
-public class OctreeNode
-{
-    public Vector3 center; // Centro della cella
-    public float size; // Lunghezza del lato della cella
-    public Vector3 centerOfMass; // Centro di massa delle particelle all'interno della cella
-    public float totalMass; // Massa totale delle particelle all'interno della cella
-    public OctreeNode[] children; // Figli di questo nodo nell'octree
-    public List<ParticleEntity> particles; // Particelle all'interno di questa cella
-    private float softeningSquared = 0.01f; // Softening per evitare forze infinite
-    public float G;
-    // Costruttore
-    public OctreeNode(Vector3 center, float size, float G)
-    {
-        this.center = center;
-        this.size = size;
-        centerOfMass = Vector3.zero;
-        totalMass = 0f;
-        children = new OctreeNode[8];
-        particles = new List<ParticleEntity>();
-        this.G = G;
-    }
-
-    // Metodo per aggiungere una particella a questo nodo (o ai suoi figli)
-    public void AddParticle(ParticleEntity particle)
-    {
-        // Se il nodo ha figli, aggiungi la particella a uno dei figli
-        if (children[0] != null)
-        {
-            int index = GetChildIndexForParticle(particle.position);
-            children[index].AddParticle(particle);
-        }
-        else
-        {
-            // Altrimenti, aggiungi la particella a questo nodo
-            particles.Add(particle);
-
-            // Se dopo l'aggiunta la cella supera un certo limite di particelle,
-            // dividila creando nuovi nodi figli e redistribuendo le particelle
-            if (particles.Count > 1) // Soglia arbitraria, ad esempio 1 per semplicità
-            {
-                Subdivide();
-                // Dopo la suddivisione, riposiziona le particelle esistenti nei nuovi figli
-                foreach (var existingParticle in particles)
-                {
-                    int index = GetChildIndexForParticle(existingParticle.position);
-                    children[index].AddParticle(existingParticle);
-                }
-                // Pulisci la lista delle particelle dal nodo corrente
-                particles.Clear();
-            }
-        }
-
-        // Aggiorna il centro di massa e la massa totale
-        UpdateMassDistribution(particle);
-    }
-
-    // Metodo per suddividere questo nodo creando otto nuovi figli
-    private void Subdivide()
-    {
-        for (int i = 0; i < 8; i++)
-        {
-            // Calcola il centro per ogni nuovo figlio
-            // Attenzione: la logica qui presuppone che il punto (0,0,0) sia al centro della cella corrente.
-            // Se il tuo sistema di coordinate è diverso, potresti dover adattare.
-            Vector3 childCenter = center + new Vector3(
-                (i % 2 == 0 ? -size : size) / 4,  // Cambia per l'asse X
-                (i / 4 == 0 ? -size : size) / 4,  // Cambia per l'asse Y
-                (i / 2 % 2 == 0 ? -size : size) / 4); // Cambia per l'asse Z
-            children[i] = new OctreeNode(childCenter, size / 2, G);
-        }
-    }
-
-    // Metodo per determinare in quale figlio dovrebbe andare una particella data la sua posizione
-    private int GetChildIndexForParticle(Vector3 position)
-    {
-        int index = 0;
-        if (position.x >= center.x)
-        {
-            index += 1;
-        }
-        if (position.y >= center.y)
-        {
-            index += 4;
-        }
-        if (position.z >= center.z)
-        {
-            index += 2;
-        }
-        return index;
-    }
-
-    // Metodo per aggiornare la massa totale e il centro di massa del nodo
-    private void UpdateMassDistribution(ParticleEntity particle)
-    {
-        totalMass += particle.mass;
-        centerOfMass = (centerOfMass * (totalMass - particle.mass) + particle.position * particle.mass) / totalMass;
-    }
-
-    public Vector3 CalculateForceBarnesHut(ParticleEntity particle, OctreeNode node, float theta)
-    {
-        Vector3 force = Vector3.zero;
-        if (node == null || particle == null)
-        {
-            return force; // Ritorna forza zero se il nodo o la particella sono nulli
-        }
-
-        // Se il nodo è una foglia (non ha figli) e contiene una particella
-        if (node.particles.Count == 1 && node.particles[0] != particle)
-        {
-            // Calcola la forza diretta tra la particella e la particella nel nodo
-            Vector3 direction = node.centerOfMass - particle.position;
-            float distanceSquared = direction.sqrMagnitude + softeningSquared; // softening per evitare forze infinite
-            float forceMagnitude = G * particle.mass * node.totalMass / distanceSquared;
-            force = direction.normalized * forceMagnitude;
-        }
-        else if (node.size / Vector3.Distance(particle.position, node.centerOfMass) < theta)
-        {
-            // Se il nodo è sufficientemente lontano, trattalo come un singolo corpo
-            Vector3 direction = node.centerOfMass - particle.position;
-            float distanceSquared = direction.sqrMagnitude + softeningSquared; // softening per evitare forze infinite
-            float forceMagnitude = G * particle.mass * node.totalMass / distanceSquared;
-            force = direction.normalized * forceMagnitude;
-        }
-        else
-        {
-            // Altrimenti, se il nodo non è sufficientemente lontano, calcola ricorsivamente la forza dai figli
-            foreach (var child in node.children)
-            {
-                force += CalculateForceBarnesHut(particle, child, theta);
-            }
-        }
-        return force;
-    }
-
 }
