@@ -16,6 +16,7 @@ using System;
 public class Simulation : MonoBehaviour
 {
     public GameObject particlePrefab;
+    public GameObject blackHolePrefab;
     private List<ParticleEntity> particles = new List<ParticleEntity>();
     private readonly float G = 6.67430f; // Gravitational constant
     private float _deltaTime = 0;
@@ -29,7 +30,7 @@ public class Simulation : MonoBehaviour
     private int yearPassed = 0;
     private double nextUpdate = 1;
     public GameObject objectInfoObject;
-    private int _starVelocity = 10;
+    private int _starVelocity = 2;
     private ParticleEntity lockedParticle;
     private string[] STAR_TYPE = { "Brown Dwarf", "Red Dwarf", "Orange Dwarf", "Yellow Dwarf", "Yellow-White Dwarf", "White Star", "Blue-White Star", "Blue Star" };
     // private float BLACK_HOLE_MASS = 10000;
@@ -146,6 +147,11 @@ public class Simulation : MonoBehaviour
             Vector3 velocity = Vector3.zero;
             if (isGalaxy){
                 velocity.x = 6f;
+            }else{
+                // Randomize velocity
+                velocity.x = Random.Range(-_starVelocity, _starVelocity);
+                velocity.y = Random.Range(-_starVelocity, _starVelocity);
+                velocity.z = Random.Range(-_starVelocity, _starVelocity);
             }
             particles.Add(AddParticle(currentScene, newPosition, velocity));
         }
@@ -209,7 +215,7 @@ public class Simulation : MonoBehaviour
         GameObject particle;
         if (isBlackHole)
         {
-            particle = Instantiate(Resources.Load<GameObject>("BlackHolePrefab"));
+            particle = Instantiate(blackHolePrefab);
         }
         else
         {
@@ -270,7 +276,8 @@ public class Simulation : MonoBehaviour
     {
         Star star = GenerateRandomStar();
         Color color = GetStarColor(star.Temperature);
-        GameObject particleObject = CreateParticle(_particleSize, color, position?.x, position?.y, position?.z);
+        bool isBlackHole = mass >= 1000;
+        GameObject particleObject = CreateParticle(_particleSize, color, position?.x, position?.y, position?.z, isBlackHole, !isBlackHole);
 
         SceneManager.MoveGameObjectToScene(particleObject, currentScene);
         return new(_particleSize, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject);
