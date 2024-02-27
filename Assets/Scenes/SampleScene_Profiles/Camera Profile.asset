@@ -26,8 +26,8 @@ MonoBehaviour:
     overrideState: 1
     value: 1
   clamp:
-    overrideState: 0
-    value: 65472
+    overrideState: 1
+    value: 1000
   diffusion:
     overrideState: 0
     value: 8.8

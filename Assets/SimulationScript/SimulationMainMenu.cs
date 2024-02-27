@@ -3,7 +3,6 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Threading.Tasks;
 using Color = UnityEngine.Color;
-using Unity.VisualScripting;
 using Random = UnityEngine.Random;
 
 
@@ -11,7 +10,6 @@ public class SimulationMainMenu : MonoBehaviour
 {
     public GameObject particlePrefab;
     private List<ParticleEntity> particles = new List<ParticleEntity>();
-    private readonly float G = 6.67430f;
     private float _deltaTime = 0;
     private double nextUpdate = 1;
     private string[] STAR_TYPE = { "Brown Dwarf", "Red Dwarf", "Orange Dwarf", "Yellow Dwarf", "Yellow-White Dwarf", "White Star", "Blue-White Star", "Blue Star" };
@@ -82,7 +80,7 @@ public class SimulationMainMenu : MonoBehaviour
         Scene currentScene = SceneManager.GetActiveScene();
         var cameraPosition = Camera.main.transform.position;
         cameraPosition = new Vector3(cameraPosition.x, cameraPosition.y, cameraPosition.z + 5);
-        CreateCluster(currentScene, cameraPosition, 5);
+        CreateCluster(currentScene, cameraPosition, 6);
     }
 
     void Update()
@@ -99,7 +97,7 @@ public class SimulationMainMenu : MonoBehaviour
             float y = Random.Range(position.y - 2, position.y + 2);
             float z = position.z;
             Vector3 newPosition = new Vector3(x, y, z);
-            particles.Add(AddParticle(currentScene, newPosition, Vector3.zero));
+            particles.Add(AddStar(currentScene, newPosition, Vector3.zero));
         }
     }
 
@@ -182,15 +180,25 @@ public class SimulationMainMenu : MonoBehaviour
         return distance < radiusSum / 2;
     }
 
-    private ParticleEntity AddParticle(Scene currentScene, Vector3? position = null, Vector3? velocity = null, float mass = 1)
+    private ParticleEntity AddStar(Scene currentScene, Vector3? position = null, Vector3? velocity = null, float mass = 1)
     {
         Star star = GenerateRandomStar();
         Color color = GetStarColor(star.Temperature);
         GameObject particleObject = CreateParticle(_particleSize, color, position?.x, position?.y, position?.z);
 
         SceneManager.MoveGameObjectToScene(particleObject, currentScene);
-        return new(_particleSize, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject);
+        return new(_particleSize, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject, color);
     }
+
+    private ParticleEntity AddPlanet(Scene currentScene, Vector3? position = null, Vector3? velocity = null, string name = "", float mass = 1)
+    {
+        Planet planet = new Planet(mass, Color.grey);
+        GameObject particleObject = CreateParticle(_particleSize, planet.color, position?.x, position?.y, position?.z);
+
+        SceneManager.MoveGameObjectToScene(particleObject, currentScene);
+        return new(_particleSize, velocity ?? Vector3.zero, planet.Mass, 0, name, particleObject, planet.color);
+    }
+
 
     // Simulate gravity O(n^2) complexity
     private void SimulateGravity()
@@ -216,7 +224,7 @@ public class SimulationMainMenu : MonoBehaviour
 
                     if (!CheckCollision(currentEntity, nextEntity))
                     {
-                        float forceMagnitude = G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
+                        float forceMagnitude = Utility.G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
                         Vector3 force = forceDirection * forceMagnitude;
 
                         currentEntity.acceleration += force / currentEntity.mass;

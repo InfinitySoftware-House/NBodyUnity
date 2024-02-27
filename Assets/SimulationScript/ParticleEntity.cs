@@ -1,4 +1,3 @@
-using PimDeWitte.UnityMainThreadDispatcher;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -15,8 +14,9 @@ public class ParticleEntity
     public string type;
     public bool isBlackHole = false;
     public float kineticEnergy;
+    public Color color;
 
-    public ParticleEntity(Vector3 size, Vector3 velocity, float mass, float temperature, string type, GameObject particleObject, string name = "")
+    public ParticleEntity(Vector3 size, Vector3 velocity, float mass, float temperature, string type, GameObject particleObject, Color color, string name = "")
     {
         this.size = size;
         position = particleObject.transform.position;
@@ -28,6 +28,7 @@ public class ParticleEntity
         this.type = type;
         this.name = string.IsNullOrEmpty(name) ? RandomNameGenerator() : name;
         isBlackHole = mass >= 1000;
+        this.color = color;
     }
     private string RandomNameGenerator()
     {

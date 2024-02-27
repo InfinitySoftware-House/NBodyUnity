@@ -7,9 +7,7 @@ using Color = UnityEngine.Color;
 using PimDeWitte.UnityMainThreadDispatcher;
 using Unity.VisualScripting;
 using System.Linq;
-using UnityEditor;
 using Random = UnityEngine.Random;
-using System.Collections;
 using System;
 
 
@@ -18,26 +16,22 @@ public class Simulation : MonoBehaviour
     public GameObject particlePrefab;
     public GameObject blackHolePrefab;
     private List<ParticleEntity> particles = new List<ParticleEntity>();
-    private readonly float G = 6.67430f; // Gravitational constant
     private float _deltaTime = 0;
     public TMP_Text particlesCountText;
     public TMP_Text iterationsPerSecText;
     public TMP_Text yearPassedText;
-    // private TMP_Text newStarVelocityText;
     public bool showOrbitLines = false;
     public bool showBloom = true;
     private double iterationsPerSec = 0;
     private int yearPassed = 0;
     private double nextUpdate = 1;
     public GameObject objectInfoObject;
-    private int _starVelocity = 2;
+    private int _starVelocity = 4;
     private ParticleEntity lockedParticle;
-    private string[] STAR_TYPE = { "Brown Dwarf", "Red Dwarf", "Orange Dwarf", "Yellow Dwarf", "Yellow-White Dwarf", "White Star", "Blue-White Star", "Blue Star" };
-    // private float BLACK_HOLE_MASS = 10000;
     private bool showKineticEnergy = false;
     private bool showVelocityColor = false;
-    public GameObject legendPanel;
-    private Vector3 _particleSize = new Vector3(0.1f, 0.1f, 0.1f);
+    public GameObject hud;
+    private Vector3 _particleSize = new Vector3(0.08f, 0.08f, 0.08f);
     public TMP_Text showBloomText;
     public TMP_Text showOrbitLinesText;
     public TMP_Text showKineticEnergyText;
@@ -47,77 +41,24 @@ public class Simulation : MonoBehaviour
     private bool isGalaxy = false;
     private bool showMass = false;
     public bool isMainMenu = false;
-
-    // Method to get the color of a star based on its temperature
-    public static Color GetStarColor(float temperature)
-    {
-        // Define temperature ranges for different star types
-        const float BROWN_DWARF_MAX_TEMP = 2500f;
-        const float RED_MAX_TEMP = 3700f;
-        const float ORANGE_MAX_TEMP = 5200f;
-        const float YELLOW_MAX_TEMP = 6000f;
-        const float YELLOW_WHITE_MAX_TEMP = 7500f;
-        const float WHITE_MAX_TEMP = 10000f;
-        const float BLUE_WHITE_MAX_TEMP = 30000f;
-        // No need for a max for Blue Star as they are the hottest considered
-
-        // Define color values for different star types
-        Color brownDwarfColor = new Color(0.6f, 0.3f, 0f); // Dark red-brown
-        Color redStar = new Color(1f, 0.5f, 0.5f); // Deep red
-        Color orangeStar = new Color(1f, 0.65f, 0.4f); // Orange
-        Color yellowStar = new Color(1f, 1f, 0.5f); // Yellow
-        Color yellowWhiteStar = new Color(1f, 1f, 0.9f); // Yellow-White
-        Color whiteStar = new Color(0.9f, 0.9f, 1f); // White
-        Color blueWhiteStar = new Color(0.7f, 0.7f, 1f); // Blue-White
-        Color blueStar = new Color(0.5f, 0.5f, 1f); // Deep Blue
-
-        // Determine star color based on temperature
-        if (temperature <= BROWN_DWARF_MAX_TEMP)
-        {
-            return brownDwarfColor; // Fixed color for Brown Dwarfs
-        }
-        else if (temperature <= RED_MAX_TEMP)
-        {
-            return Color.Lerp(brownDwarfColor, redStar, (temperature - BROWN_DWARF_MAX_TEMP) / (RED_MAX_TEMP - BROWN_DWARF_MAX_TEMP));
-        }
-        else if (temperature <= ORANGE_MAX_TEMP)
-        {
-            return Color.Lerp(redStar, orangeStar, (temperature - RED_MAX_TEMP) / (ORANGE_MAX_TEMP - RED_MAX_TEMP));
-        }
-        else if (temperature <= YELLOW_MAX_TEMP)
-        {
-            return Color.Lerp(orangeStar, yellowStar, (temperature - ORANGE_MAX_TEMP) / (YELLOW_MAX_TEMP - ORANGE_MAX_TEMP));
-        }
-        else if (temperature <= YELLOW_WHITE_MAX_TEMP)
-        {
-            return Color.Lerp(yellowStar, yellowWhiteStar, (temperature - YELLOW_MAX_TEMP) / (YELLOW_WHITE_MAX_TEMP - YELLOW_MAX_TEMP));
-        }
-        else if (temperature <= WHITE_MAX_TEMP)
-        {
-            return Color.Lerp(yellowWhiteStar, whiteStar, (temperature - YELLOW_WHITE_MAX_TEMP) / (WHITE_MAX_TEMP - YELLOW_WHITE_MAX_TEMP));
-        }
-        else if (temperature <= BLUE_WHITE_MAX_TEMP)
-        {
-            return Color.Lerp(whiteStar, blueWhiteStar, (temperature - WHITE_MAX_TEMP) / (BLUE_WHITE_MAX_TEMP - WHITE_MAX_TEMP));
-        }
-        else // For the hottest stars
-        {
-            return Color.Lerp(blueWhiteStar, blueStar, (temperature - BLUE_WHITE_MAX_TEMP) / (50000 - BLUE_WHITE_MAX_TEMP)); // Assume an arbitrary upper limit for temperature
-        }
-    }
+    public bool showRedshift;
+    private bool startCameraRotation;
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
+        Vector3 massCenter = position;
         if (isGalaxy){
-            Vector3 massCenter = position;
-            particles.Add(AddParticle(currentScene, massCenter, Vector3.zero, mass: 1000));
+            // massCenter.z += 10;
+            Star blackHole = new Star("Black Hole", 100, 0, Color.black);
+            particles.Add(AddParticle(blackHole, currentScene, massCenter, Vector3.zero));
         }
+        List<Star> stars = Utility.GenerateStars(count);
         // Create a cluster of particles
         for (int i = 0; i < count; i++)
         {
             Vector3 newPosition;
             if(isGalaxy){
-                float innerRadius = 12f; // Inner radius of the ring
+                float innerRadius = 6f; // Inner radius of the ring
                 float outerRadius = 14f; // Outer radius of the ring
                 float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
 
@@ -130,7 +71,7 @@ public class Simulation : MonoBehaviour
                 newPosition = new Vector3(x, y, z);
             }else{
                 // Randomize position within a rectangular area
-                float multiplier = count / 100f;
+                float multiplier = Mathf.Max(20, count / 100); // Multiplier to increase the rectangular area
                 float minX = position.x - multiplier; // Minimum x coordinate of the rectangular area
                 float maxX = position.x + multiplier; // Maximum x coordinate of the rectangular area
                 float minY = position.y - multiplier; // Minimum y coordinate of the rectangular area
@@ -146,21 +87,39 @@ public class Simulation : MonoBehaviour
 
             Vector3 velocity = Vector3.zero;
             if (isGalaxy){
-                velocity.x = 6f;
-            }else{
+                // make the stars rotate around the center
+                Vector3 direction = massCenter - newPosition;
+                direction.z = 10;
+                velocity = Vector3.Cross(direction, Vector3.forward);
+            } else {
                 // Randomize velocity
                 velocity.x = Random.Range(-_starVelocity, _starVelocity);
                 velocity.y = Random.Range(-_starVelocity, _starVelocity);
                 velocity.z = Random.Range(-_starVelocity, _starVelocity);
             }
-            particles.Add(AddParticle(currentScene, newPosition, velocity));
+            particles.Add(AddParticle(stars[i], currentScene, newPosition, velocity));
         }
     }
+
+    private int GetUniverseSize()
+    {
+        int universeSize = 0;
+        Parallel.ForEach(particles, particle =>
+        {
+            float distance = Vector3.Distance(particle.position, Vector3.zero);
+            if (distance > universeSize)
+            {
+                universeSize = (int)distance;
+            }
+        });
+        return universeSize;
+    }
+
     private void CreateOctree()
     {
         Vector3 massCenterForSim = GetMassCenter();
-        int universeSize = 1000;
-        octree = new OctreeNode(massCenterForSim, universeSize, G);
+        int universeSize = GetUniverseSize();
+        octree = new OctreeNode(massCenterForSim, universeSize);
 
         // Add all particles to the octree
         foreach (var particle in particles)
@@ -177,37 +136,6 @@ public class Simulation : MonoBehaviour
             massCenter += particle.position;
         }
         return massCenter / particles.Count;
-    }
-
-    public Star GetStarTypeByTemperature(float temperature, float mass, bool isBlackHole = false)
-    {
-        float[,] massRanges = { { 0.01f, 0.02f }, { 0.02f, 0.45f }, { 0.45f, 0.8f }, { 0.8f, 1.04f }, { 1.04f, 1.4f }, { 1.4f, 2.1f }, { 2.1f, 16f }, { 16f, 50f } };
-        float[,] tempRanges = { { 500, 2500 }, { 2500, 3700 }, { 3700, 5200 }, { 5200, 6000 }, { 6000, 7500 }, { 7500, 10000 }, { 10000, 30000 }, { 30000, 50000 } };
-
-        for (int i = 0; i < STAR_TYPE.Length; i++)
-        {
-            if (temperature >= tempRanges[i, 0] && temperature <= tempRanges[i, 1] && mass >= massRanges[i, 0] && mass <= massRanges[i, 1])
-            {
-                return new Star(STAR_TYPE[i], mass, temperature, isBlackHole ? Color.black : GetStarColor(temperature));
-            }
-        }
-        return new Star("Unknown", mass, temperature, isBlackHole ? Color.black : GetStarColor(temperature));
-    }
-
-    public Star GenerateRandomStar(bool isBlackHole = false)
-    {
-        float[,] massRanges = { { 0.01f, 0.02f }, { 0.02f, 0.45f }, { 0.45f, 0.8f }, { 0.8f, 1.04f }, { 1.04f, 1.4f }, { 1.4f, 2.1f }, { 2.1f, 16f }, { 16f, 50f } };
-        float[,] tempRanges = { { 500, 2500 }, { 2500, 3700 }, { 3700, 5200 }, { 5200, 6000 }, { 6000, 7500 }, { 7500, 10000 }, { 10000, 30000 }, { 30000, 50000 } };
-        // Generate a random type based on the types array
-        int typeIndex = Random.Range(0, STAR_TYPE.Length);
-        string selectedType = STAR_TYPE[typeIndex];
-
-        // Generate random mass and temperature within selected type range
-        float mass = Random.Range(massRanges[typeIndex, 0], massRanges[typeIndex, 1]);
-        float temperature = Random.Range(tempRanges[typeIndex, 0], tempRanges[typeIndex, 1]);
-
-        // Return a new Star object with the generated properties
-        return new Star(selectedType, mass, temperature, isBlackHole ? Color.black : GetStarColor(temperature));
     }
 
     private GameObject CreateParticle(Vector3 size, Color color, float? x = null, float? y = null, float? z = null, bool isBlackHole = false, bool isStellar = true)
@@ -272,15 +200,13 @@ public class Simulation : MonoBehaviour
         return distance < radiusSum / 2;
     }
 
-    private ParticleEntity AddParticle(Scene currentScene, Vector3? position = null, Vector3? velocity = null, float mass = 1)
+    private ParticleEntity AddParticle(Star star, Scene currentScene, Vector3? position = null, Vector3? velocity = null, float mass = 0.5f)
     {
-        Star star = GenerateRandomStar();
-        Color color = GetStarColor(star.Temperature);
         bool isBlackHole = mass >= 1000;
-        GameObject particleObject = CreateParticle(_particleSize, color, position?.x, position?.y, position?.z, isBlackHole, !isBlackHole);
+        GameObject particleObject = CreateParticle(_particleSize, star.color, position?.x, position?.y, position?.z, isBlackHole, !isBlackHole);
 
         SceneManager.MoveGameObjectToScene(particleObject, currentScene);
-        return new(_particleSize, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject);
+        return new(_particleSize, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject, star.color);
     }
 
     // Start is called before the first frame update
@@ -314,6 +240,12 @@ public class Simulation : MonoBehaviour
     private void Update()
     {
         yearPassedText.text = yearPassed.ToString() + " Y";
+
+        if (Input.GetKeyDown(KeyCode.H))
+        {
+            showRedshift = !showRedshift;
+            Debug.Log("Redshift: " + (showRedshift ? "ON" : "OFF"));
+        }
 
         if (Input.GetKeyDown(KeyCode.Escape))
         {
@@ -364,11 +296,14 @@ public class Simulation : MonoBehaviour
             Camera.main.transform.LookAt(lockedParticle.particleObject.transform);
         }
 
-        _deltaTime = Time.deltaTime / 100;
+        _deltaTime = Time.deltaTime / 20;
 
         if (runSimulation)
         {
-            CreateOctree();
+            if(particles.Count > 0)
+            {
+                CreateOctree();
+            }
             SimulateBarnesHut();
             yearPassed += 1;
         }
@@ -410,7 +345,6 @@ public class Simulation : MonoBehaviour
             Scene currentScene = SceneManager.GetActiveScene();
             CreateCluster(currentScene, currentPosition, 400);
         }
-
         // 1000 particles
         if (Input.GetKeyDown(KeyCode.Alpha5))
         {
@@ -419,7 +353,6 @@ public class Simulation : MonoBehaviour
             Scene currentScene = SceneManager.GetActiveScene();
             CreateCluster(currentScene, currentPosition, 1000);
         }
-
         // 10000 particles
         if (Input.GetKeyDown(KeyCode.Alpha6))
         {
@@ -477,7 +410,7 @@ public class Simulation : MonoBehaviour
                 else
                 {
                     particle.particleObject.GetComponent<Renderer>().material.EnableKeyword("_EMISSION");
-                    particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", GetStarColor(particle.temperature));
+                    particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", particle.color);
                 }
             }
             showBloomText.color = showBloom ? Color.green : Color.white;
@@ -491,7 +424,8 @@ public class Simulation : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.L))
         {
-            legendPanel.SetActive(!legendPanel.activeSelf);
+            hud.SetActive(!hud.activeSelf);
+            
         }
 
         if (Input.GetKeyDown(KeyCode.V))
@@ -516,8 +450,23 @@ public class Simulation : MonoBehaviour
         {
             GC.Collect();
         }
+
+        if (Input.GetKeyDown(KeyCode.P))
+        {
+            startCameraRotation = !startCameraRotation;
+        }
+
+        if (startCameraRotation && particles.Count > 0)
+        {
+            Vector3 universeCenter = GetMassCenter();
+            RotateTheCameraAround(universeCenter, 14);
+        }   
     }
 
+    private void RotateTheCameraAround(Vector3 position, float speed)
+    {
+        Camera.main.transform.RotateAround(position, Vector3.up, speed * Time.deltaTime);
+    }
     private float CalculateKineticEnergy(ParticleEntity particle)
     {
         return 0.5f * particle.mass * particle.velocity.sqrMagnitude;
@@ -536,12 +485,12 @@ public class Simulation : MonoBehaviour
             TrailRenderer trailRenderer;
             Renderer particleRenderer;
 
-            Parallel.ForEach(particles, particle =>
+            foreach (ParticleEntity particle in particles)
             {
-                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 0.5f);
+                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.0f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 particle.acceleration = Vector3.zero;
-            });
+            }
 
             for (int i = 0; i < particles.Count; i++)
             {
@@ -575,9 +524,13 @@ public class Simulation : MonoBehaviour
                         if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
                             particleRenderer.material.DisableKeyword("_EMISSION");
                     }
+                    else if (showRedshift)
+                    {
+                        particleColor = Color.Lerp(Color.red, Color.blue, Utility.CalculateRedshift(particle.position.magnitude, particle.velocity.magnitude));
+                    }
                     else
                     {
-                        particleColor = GetStarColor(particle.temperature);
+                        particleColor = particle.color;
                         if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
                             particleRenderer.material.EnableKeyword("_EMISSION");
                     }
@@ -624,7 +577,7 @@ public class Simulation : MonoBehaviour
 
                     if (!CheckCollision(currentEntity, nextEntity))
                     {
-                        float forceMagnitude = G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
+                        float forceMagnitude = Utility.G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
                         Vector3 force = forceDirection * forceMagnitude;
 
                         currentEntity.acceleration += force / currentEntity.mass;
@@ -682,7 +635,7 @@ public class Simulation : MonoBehaviour
                     }
                     else
                     {
-                        particleRenderer.material.color = GetStarColor(particle.temperature);
+                        particleRenderer.material.color = Utility.GetStarColor(particle.temperature);
                         if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
                             particleRenderer.material.EnableKeyword("_EMISSION");
                     }
@@ -717,14 +670,14 @@ public class Simulation : MonoBehaviour
         Vector3 newSize = currentEntity.size + nextEntity.size;
         float newTemperature = (currentEntity.temperature + nextEntity.temperature) / 2;
         bool isBlackHole = false; // Disable black hole creation for now
-        Star newMergedObject = GetStarTypeByTemperature(newTemperature, newMass, isBlackHole);
+        Star newMergedObject = new Star("Merged Star", newMass, newTemperature, Utility.GetStarColor(newTemperature));
         string type = isBlackHole ? "Black Hole" : newMergedObject.Type;
-        newMergedObject.color = isBlackHole ? Color.black : GetStarColor(newTemperature);
+        newMergedObject.color = isBlackHole ? Color.black : Utility.GetStarColor(newTemperature);
 
         UnityMainThreadDispatcher.Instance().Enqueue(() =>
         {
             GameObject newParticleObject = CreateParticle(newSize, newMergedObject.color, newPosition.x, newPosition.y, newPosition.z, isBlackHole);
-            ParticleEntity mergedParticle = new ParticleEntity(newSize, newVelocity, newMass, newTemperature, type, newParticleObject)
+            ParticleEntity mergedParticle = new ParticleEntity(newSize, newVelocity, newMass, newTemperature, type, newParticleObject, newMergedObject.color)
             {
                 isBlackHole = isBlackHole
             };
@@ -754,5 +707,49 @@ public class Simulation : MonoBehaviour
         }
 
         particles = null;
+    }
+
+    public void ClickButtonsAddCluster(int type)
+    {
+        float zPositionConstant = 50;
+        switch (type)
+        {
+            case 1:
+                Vector3 currentPosition = Camera.main.transform.position;
+                currentPosition.z += zPositionConstant;
+                Scene currentScene = SceneManager.GetActiveScene();
+                CreateCluster(currentScene, currentPosition);
+                break;
+            case 2:
+                Scene currentScene2 = SceneManager.GetActiveScene();
+                Vector3 currentPosition2 = Camera.main.transform.position;
+                currentPosition2.z += zPositionConstant;
+                CreateCluster(currentScene2, currentPosition2, 100);
+                break;
+            case 3:
+                Scene currentScene3 = SceneManager.GetActiveScene();
+                Vector3 currentPosition3 = Camera.main.transform.position;
+                currentPosition3.z += zPositionConstant;
+                CreateCluster(currentScene3, currentPosition3, 200);
+                break;
+            case 4:
+                Scene currentScene4 = SceneManager.GetActiveScene();
+                Vector3 currentPosition4 = Camera.main.transform.position;
+                currentPosition4.z += zPositionConstant;
+                CreateCluster(currentScene4, currentPosition4, 400);
+                break;
+            case 5:
+                Scene currentScene5 = SceneManager.GetActiveScene();
+                Vector3 currentPosition5 = Camera.main.transform.position;
+                currentPosition5.z += zPositionConstant;
+                CreateCluster(currentScene5, currentPosition5, 1000);
+                break;
+            case 6:
+                Scene currentScene6 = SceneManager.GetActiveScene();
+                Vector3 currentPosition6 = Camera.main.transform.position;
+                currentPosition6.z += zPositionConstant;
+                CreateCluster(currentScene6, currentPosition6, 10000);
+                break;
+        }
     }
 }

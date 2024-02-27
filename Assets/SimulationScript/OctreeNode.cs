@@ -10,9 +10,11 @@ public class OctreeNode
     public OctreeNode[] children; // Figli di questo nodo nell'octree
     public List<ParticleEntity> particles; // Particelle all'interno di questa cella
     private float softeningSquared = 0.01f; // Softening per evitare forze infinite
-    public float G;
+    public float G; // Costante gravitazionale
+    private int maxParticlesPerNode = 4; // Numero massimo di particelle per nodo
+
     // Costruttore
-    public OctreeNode(Vector3 center, float size, float G)
+    public OctreeNode(Vector3 center, float size)
     {
         this.center = center;
         this.size = size;
@@ -20,7 +22,7 @@ public class OctreeNode
         totalMass = 0f;
         children = new OctreeNode[8];
         particles = new List<ParticleEntity>();
-        this.G = G;
+        G = Utility.G;
     }
 
     // Metodo per aggiungere una particella a questo nodo (o ai suoi figli)
@@ -39,7 +41,7 @@ public class OctreeNode
 
             // Se dopo l'aggiunta la cella supera un certo limite di particelle,
             // dividila creando nuovi nodi figli e redistribuendo le particelle
-            if (particles.Count > 1) // Soglia arbitraria, ad esempio 1 per semplicità
+            if (particles.Count > maxParticlesPerNode) // Soglia arbitraria
             {
                 Subdivide();
                 // Dopo la suddivisione, riposiziona le particelle esistenti nei nuovi figli
@@ -69,7 +71,7 @@ public class OctreeNode
                 (i % 2 == 0 ? -size : size) / 4,  // Cambia per l'asse X
                 (i / 4 == 0 ? -size : size) / 4,  // Cambia per l'asse Y
                 (i / 2 % 2 == 0 ? -size : size) / 4); // Cambia per l'asse Z
-            children[i] = new OctreeNode(childCenter, size / 2, G);
+            children[i] = new OctreeNode(childCenter, size / 2);
         }
     }
 
@@ -112,7 +114,7 @@ public class OctreeNode
         {
             // Calcola la forza diretta tra la particella e la particella nel nodo
             Vector3 direction = node.particles[0].position - particle.position;
-            float distanceSquared = direction.sqrMagnitude + softeningSquared; // softening per evitare forze infinite
+            float distanceSquared = direction.sqrMagnitude + softeningSquared;
             float forceMagnitude = G * particle.mass * node.particles[0].mass / distanceSquared;
             force = direction.normalized * forceMagnitude;
         }
@@ -120,7 +122,7 @@ public class OctreeNode
         {
             // Se il nodo è sufficientemente lontano, trattalo come un singolo corpo
             Vector3 direction = node.centerOfMass - particle.position;
-            float distanceSquared = direction.sqrMagnitude + softeningSquared; // softening per evitare forze infinite
+            float distanceSquared = direction.sqrMagnitude + softeningSquared;
             float forceMagnitude = G * particle.mass * node.totalMass / distanceSquared;
             force = direction.normalized * forceMagnitude;
         }
@@ -134,5 +136,4 @@ public class OctreeNode
         }
         return force;
     }
-
 }
