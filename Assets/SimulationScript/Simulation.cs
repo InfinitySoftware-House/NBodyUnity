@@ -59,8 +59,8 @@ public class Simulation : MonoBehaviour
         {
             Vector3 newPosition;
             if(isGalaxy){
-                float innerRadius = 6f; // Inner radius of the ring
-                float outerRadius = 14f; // Outer radius of the ring
+                float innerRadius = 10f; // Inner radius of the ring
+                float outerRadius = particles.Count > 10000 ? 20f : 14f; // Outer radius of the ring
                 float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
 
                 // Randomize radius within the ring bounds
@@ -316,54 +316,6 @@ public class Simulation : MonoBehaviour
         }
 
         particlesCountText.text = "Objects: " + particles.Count.ToString();
-        // 100 particles
-        if (Input.GetKeyDown(KeyCode.Alpha2))
-        {
-            Scene currentScene = SceneManager.GetActiveScene();
-            Vector3 currentPosition = Camera.main.transform.position;
-            currentPosition.z += 10;
-            CreateCluster(currentScene, currentPosition, 100);
-        }
-        // 20 particles
-        if (Input.GetKeyDown(KeyCode.Alpha1))
-        {
-            Vector3 currentPosition = Camera.main.transform.position;
-            currentPosition.z += 10;
-            Scene currentScene = SceneManager.GetActiveScene();
-            CreateCluster(currentScene, currentPosition);
-        }
-        // 200 particles
-        if (Input.GetKeyDown(KeyCode.Alpha3))
-        {
-            Vector3 currentPosition = Camera.main.transform.position;
-            currentPosition.z += 10;
-            Scene currentScene = SceneManager.GetActiveScene();
-            CreateCluster(currentScene, currentPosition, 200);
-        }
-        // 400 particles
-        if (Input.GetKeyDown(KeyCode.Alpha4))
-        {
-            Vector3 currentPosition = Camera.main.transform.position;
-            currentPosition.z += 10;
-            Scene currentScene = SceneManager.GetActiveScene();
-            CreateCluster(currentScene, currentPosition, 400);
-        }
-        // 1000 particles
-        if (Input.GetKeyDown(KeyCode.Alpha5))
-        {
-            Vector3 currentPosition = Camera.main.transform.position;
-            currentPosition.z += 10;
-            Scene currentScene = SceneManager.GetActiveScene();
-            CreateCluster(currentScene, currentPosition, 1000);
-        }
-        // 10000 particles
-        if (Input.GetKeyDown(KeyCode.Alpha6))
-        {
-            Vector3 currentPosition = Camera.main.transform.position;
-            currentPosition.z += 10;
-            Scene currentScene = SceneManager.GetActiveScene();
-            CreateCluster(currentScene, currentPosition, 10000);
-        }
 
         if (Input.GetKeyDown(KeyCode.O))
         {
@@ -390,9 +342,8 @@ public class Simulation : MonoBehaviour
             // destroy all particles
             foreach (ParticleEntity particle in particles)
             {
-                GameObject gameObject = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(g => g.name == particle.name);
-                if (particle != null && gameObject != null && !gameObject.IsDestroyed())
-                    Destroy(gameObject);
+                if (particle != null && particle.particleObject != null && !particle.particleObject.IsDestroyed())
+                    Destroy(particle.particleObject);
             }
             // garbage collect
             particles = null;
@@ -406,16 +357,15 @@ public class Simulation : MonoBehaviour
             showBloom = !showBloom;
             foreach (ParticleEntity particle in particles)
             {
-                GameObject gameObject = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(g => g.name == particle.name);
                 if (!showBloom)
                 {
-                    gameObject.GetComponent<Renderer>().material.DisableKeyword("_EMISSION");
-                    gameObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", Color.black);
+                    particle.particleObject.GetComponent<Renderer>().material.DisableKeyword("_EMISSION");
+                    particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", Color.black);
                 }
                 else
                 {
-                    gameObject.GetComponent<Renderer>().material.EnableKeyword("_EMISSION");
-                    gameObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", particle.color);
+                    particle.particleObject.GetComponent<Renderer>().material.EnableKeyword("_EMISSION");
+                    particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", particle.color);
                 }
             }
             showBloomText.color = showBloom ? Color.green : Color.white;
@@ -723,48 +673,13 @@ public class Simulation : MonoBehaviour
         particles = null;
     }
 
-    public void ClickButtonsAddCluster(int type)
+    public void ClickButtonsAddCluster(int count)
     {
         float zPositionConstant = 50;
-        switch (type)
-        {
-            case 1:
-                Vector3 currentPosition = Camera.main.transform.position;
-                currentPosition.z += zPositionConstant;
-                Scene currentScene = SceneManager.GetActiveScene();
-                CreateCluster(currentScene, currentPosition);
-                break;
-            case 2:
-                Scene currentScene2 = SceneManager.GetActiveScene();
-                Vector3 currentPosition2 = Camera.main.transform.position;
-                currentPosition2.z += zPositionConstant;
-                CreateCluster(currentScene2, currentPosition2, 100);
-                break;
-            case 3:
-                Scene currentScene3 = SceneManager.GetActiveScene();
-                Vector3 currentPosition3 = Camera.main.transform.position;
-                currentPosition3.z += zPositionConstant;
-                CreateCluster(currentScene3, currentPosition3, 200);
-                break;
-            case 4:
-                Scene currentScene4 = SceneManager.GetActiveScene();
-                Vector3 currentPosition4 = Camera.main.transform.position;
-                currentPosition4.z += zPositionConstant;
-                CreateCluster(currentScene4, currentPosition4, 400);
-                break;
-            case 5:
-                Scene currentScene5 = SceneManager.GetActiveScene();
-                Vector3 currentPosition5 = Camera.main.transform.position;
-                currentPosition5.z += zPositionConstant;
-                CreateCluster(currentScene5, currentPosition5, 1000);
-                break;
-            case 6:
-                Scene currentScene6 = SceneManager.GetActiveScene();
-                Vector3 currentPosition6 = Camera.main.transform.position;
-                currentPosition6.z += zPositionConstant;
-                CreateCluster(currentScene6, currentPosition6, 10000);
-                break;
-        }
+        Vector3 currentPosition = Camera.main.transform.position;
+        currentPosition.z += zPositionConstant;
+        Scene currentScene = SceneManager.GetActiveScene();
+        CreateCluster(currentScene, currentPosition, count);
         isGalaxy = false;
         galaxyModePanel.SetActive(isGalaxy);
     }
