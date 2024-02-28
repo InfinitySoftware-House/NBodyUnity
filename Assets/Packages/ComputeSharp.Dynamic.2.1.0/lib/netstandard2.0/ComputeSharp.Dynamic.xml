@@ -1,0 +1,430 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>ComputeSharp.Dynamic</name>
+    </assembly>
+    <members>
+        <member name="T:ComputeSharp.Extensions.MethodInfoExtensions">
+            <summary>
+            A <see langword="class"/> that provides extension methods for the <see cref="T:System.Reflection.MethodInfo"/> type.
+            </summary>
+        </member>
+        <member name="M:ComputeSharp.Extensions.MethodInfoExtensions.GetFullyQualifiedName(System.Reflection.MethodInfo)">
+            <summary>
+            Gets a fully qualified name for the input method, including parameters.
+            </summary>
+            <param name="method">The input <see cref="T:System.Reflection.MethodInfo"/> instance.</param>
+            <returns>A fully qualified name for <paramref name="method"/>, including parameters.</returns>
+        </member>
+        <member name="T:ComputeSharp.ShaderMethodAttribute">
+            <summary>
+            An attribute that indicates that a method will be indirectly used in a compute shader.
+            This method is necessary for methods that are captured and used within a given shader
+            through a <see cref="T:System.Delegate"/> field (of some custom type). In order to be processed
+            correctly, wrapped methods need to have this attribute manually applied to them.
+            Methods also need to be static, though this can only be tested at runtime.
+            </summary>
+        </member>
+        <member name="T:ComputeSharp.__Internals.ShaderMethodSourceAttribute">
+            <summary>
+            An attribute that contains info on a processed shader method that can be executed within a shader.
+            Instances of this attribute are generated from method annotated with <see cref="T:ComputeSharp.ShaderMethodAttribute"/>.
+            </summary>
+            <remarks>This attribute is not meant to be directly used by applications using ComputeSharp.</remarks>
+            <inheritdoc/>
+        </member>
+        <member name="F:ComputeSharp.__Internals.ShaderMethodSourceAttribute.InvokeMethodIdentifier">
+            <summary>
+            The identifier for the invoke method, for late binding.
+            </summary>
+        </member>
+        <member name="F:ComputeSharp.__Internals.ShaderMethodSourceAttribute.methodName">
+            <summary>
+            The fully qualified name of the current method.
+            </summary>
+        </member>
+        <member name="F:ComputeSharp.__Internals.ShaderMethodSourceAttribute.invokeMethod">
+            <summary>
+            The source code for the target entry point method.
+            </summary>
+        </member>
+        <member name="F:ComputeSharp.__Internals.ShaderMethodSourceAttribute.types">
+            <summary>
+            The collection of custom types.
+            </summary>
+        </member>
+        <member name="F:ComputeSharp.__Internals.ShaderMethodSourceAttribute.methods">
+            <summary>
+            The collection of processed methods.
+            </summary>
+        </member>
+        <member name="F:ComputeSharp.__Internals.ShaderMethodSourceAttribute.constants">
+            <summary>
+            The collection of discovered constants.
+            </summary>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderMethodSourceAttribute.#ctor(System.String,System.String,System.Object[],System.Object[],System.Object[])">
+            <summary>
+            Creates a new <see cref="T:ComputeSharp.__Internals.ShaderMethodSourceAttribute"/> instance with the specified parameters.
+            </summary>
+            <param name="methodName">The fully qualified name of the current method.</param>
+            <param name="invokeMethod">The source code for the target entry point method.</param>
+            <param name="types">The collection of custom types.</param>
+            <param name="methods">The collection of processed methods.</param>
+            <param name="constants">The collection of discovered constants.</param>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderMethodSourceAttribute.GetForDelegate(System.Delegate,System.String)">
+            <summary>
+            Gets the associated <see cref="T:ComputeSharp.__Internals.ShaderMethodSourceAttribute"/> instance for a specified delegate.
+            </summary>
+            <param name="function">The input <see cref="T:System.Delegate"/> instance to get info for.</param>
+            <param name="name">The name of the shader field containing <paramref name="function"/>.</param>
+            <returns>The associated <see cref="T:ComputeSharp.__Internals.ShaderMethodSourceAttribute"/> instance for the given delegate.</returns>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderMethodSourceAttribute.ThrowArgumentExceptionForNonStaticMethod(System.String)">
+            <summary>
+            Throws an <see cref="T:System.ArgumentException"/> when a given <see cref="T:System.Delegate"/> is not static.
+            </summary>
+            <param name="name">The name of the shader field containing the invalid method.</param>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderMethodSourceAttribute.ThrowArgumentExceptionForMissingShaderMethodAttribute(System.String)">
+            <summary>
+            Throws an <see cref="T:System.ArgumentException"/> when a given <see cref="T:System.Delegate"/> doesn't have <see cref="T:ComputeSharp.ShaderMethodAttribute"/> applied to it.
+            </summary>
+            <param name="name">The name of the shader field containing the invalid method.</param>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderMethodSourceAttribute.AppendConstants(ComputeSharp.__Internals.ArrayPoolStringBuilder@,System.Collections.Generic.HashSet{System.String})">
+            <summary>
+            Appends the mapped source code for the current method.
+            </summary>
+            <param name="builder">The target <see cref="T:ComputeSharp.__Internals.ArrayPoolStringBuilder"/> instance to write to.</param>
+            <param name="mapping">The mapping of already discovered constant names.</param>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderMethodSourceAttribute.AppendTypes(ComputeSharp.__Internals.ArrayPoolStringBuilder@,System.Collections.Generic.HashSet{System.String})">
+            <summary>
+            Appends the discovered types for the current method.
+            </summary>
+            <param name="builder">The target <see cref="T:ComputeSharp.__Internals.ArrayPoolStringBuilder"/> instance to write to.</param>
+            <param name="mapping">The mapping of already discovered type names.</param>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderMethodSourceAttribute.AppendForwardDeclarations(ComputeSharp.__Internals.ArrayPoolStringBuilder@,System.Collections.Generic.HashSet{System.String})">
+            <summary>
+            Appends the discovered forward declarations for the current method.
+            </summary>
+            <param name="builder">The target <see cref="T:ComputeSharp.__Internals.ArrayPoolStringBuilder"/> instance to write to.</param>
+            <param name="mapping">The mapping of already discovered type names.</param>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderMethodSourceAttribute.AppendMethods(ComputeSharp.__Internals.ArrayPoolStringBuilder@,System.Collections.Generic.HashSet{System.String})">
+            <summary>
+            Appends the discovered methods for the current method.
+            </summary>
+            <param name="builder">The target <see cref="T:ComputeSharp.__Internals.ArrayPoolStringBuilder"/> instance to write to.</param>
+            <param name="mapping">The mapping of already discovered type names.</param>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderMethodSourceAttribute.AppendMappedInvokeMethod(ComputeSharp.__Internals.ArrayPoolStringBuilder@,System.String)">
+            <summary>
+            Appends the mapped source code for the current method.
+            </summary>
+            <param name="builder">The target <see cref="T:ComputeSharp.__Internals.ArrayPoolStringBuilder"/> instance to write to.</param>
+            <param name="name">The name to bind the method to.</param>
+        </member>
+        <member name="T:ComputeSharp.__Internals.ShaderCompiler">
+            <summary>
+            A <see langword="class"/> that uses the DXC APIs to compile compute shaders.
+            </summary>
+        </member>
+        <member name="M:ComputeSharp.__Internals.ShaderCompiler.LoadDynamicBytecode``2(``0@,System.Int32,System.Int32,System.Int32,``1@)">
+            <summary>
+            Compiles a new HLSL shader from the input source code.
+            </summary>
+            <typeparam name="TLoader">The type of bytecode loader being used.</typeparam>
+            <typeparam name="T">The type of shader being dispatched.</typeparam>
+            <param name="loader">The <typeparamref name="TLoader"/> instance to use to load the bytecode.</param>
+            <param name="threadsX">The number of threads in each thread group for the X axis.</param>
+            <param name="threadsY">The number of threads in each thread group for the Y axis.</param>
+            <param name="threadsZ">The number of threads in each thread group for the Z axis.</param>
+            <param name="shader">The input <typeparamref name="T"/> instance representing the compute shader to run.</param>
+        </member>
+        <member name="T:ComputeSharp.Exceptions.DxcCompilationException">
+            <summary>
+            A custom <see cref="T:System.Exception"/> type that indicates when a shader compilation with the DXC compiler has failed.
+            </summary>
+        </member>
+        <member name="M:ComputeSharp.Exceptions.DxcCompilationException.#ctor(System.String)">
+            <summary>
+            Creates a new <see cref="T:ComputeSharp.Exceptions.DxcCompilationException"/> instance.
+            </summary>
+            <param name="error">The error message produced by the DXC compiler.</param>
+        </member>
+        <member name="M:ComputeSharp.Exceptions.DxcCompilationException.GetExceptionMessage(System.String)">
+            <summary>
+            Gets a formatted exception message for a given compilation error.
+            </summary>
+            <param name="error">The input compilatin error message from the DXC compiler.</param>
+            <returns>A formatted error message for a new <see cref="T:ComputeSharp.Exceptions.DxcCompilationException"/> instance.</returns>
+        </member>
+        <member name="T:ComputeSharp.Interop.ReflectionServices">
+            <summary>
+            Provides methods to extract reflection info on compute shaders generated using this library.
+            </summary>
+        </member>
+        <member name="M:ComputeSharp.Interop.ReflectionServices.GetShaderInfo``1">
+            <summary>
+            Gets the shader info associated with a given compute shader.
+            <para>
+            This overload can be used for simplicity when the compute shader being inspected does not rely on captured
+            objects to be processed correctly. This is the case when it does not contain any <see cref="T:System.Delegate"/>-s.
+            </para>
+            </summary>
+            <typeparam name="T">The type of compute shader to retrieve info for.</typeparam>
+            <returns>The resulting <see cref="T:ComputeSharp.Interop.ShaderInfo"/> instance.</returns>
+            <remarks>
+            The thread group sizes will always be set to (1, 1, 1) in the returned shader. This is done to
+            avoid having to compiler multiple shaders just to get reflection info for them. When using any of
+            the APIs to dispatch a shader, the thread sizes would actually be set to a proper value insead.
+            </remarks>
+        </member>
+        <member name="M:ComputeSharp.Interop.ReflectionServices.GetShaderInfo``1(``0@)">
+            <summary>
+            Gets the shader info associated with a given compute shader.
+            </summary>
+            <typeparam name="T">The type of compute shader to retrieve info for.</typeparam>
+            <param name="shader">The input compute shader to retrieve info for.</param>
+            <returns>The resulting <see cref="T:ComputeSharp.Interop.ShaderInfo"/> instance.</returns>
+            <remarks>
+            The thread group sizes will always be set to (1, 1, 1) in the returned shader. This is done to
+            avoid having to compiler multiple shaders just to get reflection info for them. When using any of
+            the APIs to dispatch a shader, the thread sizes would actually be set to a proper value insead.
+            </remarks>
+        </member>
+        <member name="M:ComputeSharp.Interop.ReflectionServices.GetShaderInfo``2">
+            <summary>
+            Gets the shader info associated with a given pixel shader.
+            <para>
+            This overload can be used for simplicity when the pixel shader being inspected does not rely on captured
+            objects to be processed correctly. This is the case when it does not contain any <see cref="T:System.Delegate"/>-s.
+            </para>
+            </summary>
+            <typeparam name="T">The type of pixel shader to retrieve info for.</typeparam>
+            <typeparam name="TPixel">The type of pixels being processed by the shader.</typeparam>
+            <returns>The resulting <see cref="T:ComputeSharp.Interop.ShaderInfo"/> instance.</returns>
+            <remarks>
+            The thread group sizes will always be set to (1, 1, 1) in the returned shader. This is done to
+            avoid having to compiler multiple shaders just to get reflection info for them. When using any of
+            the APIs to dispatch a shader, the thread sizes would actually be set to a proper value insead.
+            </remarks>
+        </member>
+        <member name="M:ComputeSharp.Interop.ReflectionServices.GetShaderInfo``2(``0@)">
+            <summary>
+            Gets the shader info associated with a given pixel shader.
+            </summary>
+            <typeparam name="T">The type of pixel shader to retrieve info for.</typeparam>
+            <typeparam name="TPixel">The type of pixels being processed by the shader.</typeparam>
+            <param name="shader">The input pixel shader to retrieve info for.</param>
+            <returns>The resulting <see cref="T:ComputeSharp.Interop.ShaderInfo"/> instance.</returns>
+            <remarks>
+            The thread group sizes will always be set to (1, 1, 1) in the returned shader. This is done to
+            avoid having to compiler multiple shaders just to get reflection info for them. When using any of
+            the APIs to dispatch a shader, the thread sizes would actually be set to a proper value insead.
+            </remarks>
+        </member>
+        <member name="M:ComputeSharp.Interop.ReflectionServices.GetNonGenericShaderInfo``1(``0@)">
+            <summary>
+            Gets the shader info associated with a given shader of any type.
+            </summary>
+            <typeparam name="T">The type of shader to retrieve info for.</typeparam>
+            <param name="shader">The input shader to retrieve info for.</param>
+            <returns>The resulting <see cref="T:ComputeSharp.Interop.ShaderInfo"/> instance.</returns>
+        </member>
+        <member name="T:ComputeSharp.Interop.ShaderInfo">
+            <summary>
+            A model representing reflection info for a given compute shader.
+            </summary>
+            <param name="CompilerVersion">The compiler version used to build the shader.</param>
+            <param name="HlslSource">The HLSL source code the shader was built from.</param>
+            <param name="ConstantBufferCount">The number of shader constant buffers.</param>
+            <param name="BoundResourceCount">The number of resource (textures and buffers) bound to a shader.</param>
+            <param name="InstructionCount">The number of intermediate-language instructions in the compiled shader.</param>
+            <param name="TemporaryRegisterCount">The number of temporary registers in the compiled shader.</param>
+            <param name="TemporaryArrayCount">The number of temporary arrays used.</param>
+            <param name="ConstantDefineCount">The number of constant defines.</param>
+            <param name="DeclarationCount">The number of declarations (input + output).</param>
+            <param name="TextureNormalInstructions">The number of non-categorized texture instructions.</param>
+            <param name="TextureLoadInstructionCount"> The number of texture load instructions.</param>
+            <param name="TextureStoreInstructionCount">The number of texture write instructions.</param>
+            <param name="FloatInstructionCount">The number of floating point arithmetic instructions used.</param>
+            <param name="IntInstructionCount">The number of signed integer arithmetic instructions used.</param>
+            <param name="UIntInstructionCount">The number of unsigned integer arithmetic instructions used.</param>
+            <param name="StaticFlowControlInstructionCount">The number of static flow control instructions used.</param>
+            <param name="DynamicFlowControlInstructionCount">The number of dynamic flow control instructions used.</param>
+            <param name="EmitInstructionCount">The number of emit instructions used.</param>
+            <param name="BarrierInstructionCount">The number of barrier instructions used.</param>
+            <param name="InterlockedInstructionCount">The number of interlocked instructions used.</param>
+            <param name="BitwiseInstructionCount">The number of bitwise instructions used.</param>
+            <param name="MovcInstructionCount">The number of <c>movc</c> instructions used.</param>
+            <param name="MovInstructionCount">The number of <c>mov</c> instructions used.</param>
+            <param name="InterfaceSlotCount">The number of interface slots used.</param>
+            <param name="RequiresDoublePrecisionSupport">Indicates whether support for double precision floating point numbers is required.</param>
+        </member>
+        <member name="M:ComputeSharp.Interop.ShaderInfo.#ctor(System.String,System.String,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.UInt32,System.Boolean)">
+            <summary>
+            A model representing reflection info for a given compute shader.
+            </summary>
+            <param name="CompilerVersion">The compiler version used to build the shader.</param>
+            <param name="HlslSource">The HLSL source code the shader was built from.</param>
+            <param name="ConstantBufferCount">The number of shader constant buffers.</param>
+            <param name="BoundResourceCount">The number of resource (textures and buffers) bound to a shader.</param>
+            <param name="InstructionCount">The number of intermediate-language instructions in the compiled shader.</param>
+            <param name="TemporaryRegisterCount">The number of temporary registers in the compiled shader.</param>
+            <param name="TemporaryArrayCount">The number of temporary arrays used.</param>
+            <param name="ConstantDefineCount">The number of constant defines.</param>
+            <param name="DeclarationCount">The number of declarations (input + output).</param>
+            <param name="TextureNormalInstructions">The number of non-categorized texture instructions.</param>
+            <param name="TextureLoadInstructionCount"> The number of texture load instructions.</param>
+            <param name="TextureStoreInstructionCount">The number of texture write instructions.</param>
+            <param name="FloatInstructionCount">The number of floating point arithmetic instructions used.</param>
+            <param name="IntInstructionCount">The number of signed integer arithmetic instructions used.</param>
+            <param name="UIntInstructionCount">The number of unsigned integer arithmetic instructions used.</param>
+            <param name="StaticFlowControlInstructionCount">The number of static flow control instructions used.</param>
+            <param name="DynamicFlowControlInstructionCount">The number of dynamic flow control instructions used.</param>
+            <param name="EmitInstructionCount">The number of emit instructions used.</param>
+            <param name="BarrierInstructionCount">The number of barrier instructions used.</param>
+            <param name="InterlockedInstructionCount">The number of interlocked instructions used.</param>
+            <param name="BitwiseInstructionCount">The number of bitwise instructions used.</param>
+            <param name="MovcInstructionCount">The number of <c>movc</c> instructions used.</param>
+            <param name="MovInstructionCount">The number of <c>mov</c> instructions used.</param>
+            <param name="InterfaceSlotCount">The number of interface slots used.</param>
+            <param name="RequiresDoublePrecisionSupport">Indicates whether support for double precision floating point numbers is required.</param>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.CompilerVersion">
+            <summary>The compiler version used to build the shader.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.HlslSource">
+            <summary>The HLSL source code the shader was built from.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.ConstantBufferCount">
+            <summary>The number of shader constant buffers.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.BoundResourceCount">
+            <summary>The number of resource (textures and buffers) bound to a shader.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.InstructionCount">
+            <summary>The number of intermediate-language instructions in the compiled shader.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.TemporaryRegisterCount">
+            <summary>The number of temporary registers in the compiled shader.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.TemporaryArrayCount">
+            <summary>The number of temporary arrays used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.ConstantDefineCount">
+            <summary>The number of constant defines.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.DeclarationCount">
+            <summary>The number of declarations (input + output).</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.TextureNormalInstructions">
+            <summary>The number of non-categorized texture instructions.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.TextureLoadInstructionCount">
+            <summary> The number of texture load instructions.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.TextureStoreInstructionCount">
+            <summary>The number of texture write instructions.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.FloatInstructionCount">
+            <summary>The number of floating point arithmetic instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.IntInstructionCount">
+            <summary>The number of signed integer arithmetic instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.UIntInstructionCount">
+            <summary>The number of unsigned integer arithmetic instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.StaticFlowControlInstructionCount">
+            <summary>The number of static flow control instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.DynamicFlowControlInstructionCount">
+            <summary>The number of dynamic flow control instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.EmitInstructionCount">
+            <summary>The number of emit instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.BarrierInstructionCount">
+            <summary>The number of barrier instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.InterlockedInstructionCount">
+            <summary>The number of interlocked instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.BitwiseInstructionCount">
+            <summary>The number of bitwise instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.MovcInstructionCount">
+            <summary>The number of <c>movc</c> instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.MovInstructionCount">
+            <summary>The number of <c>mov</c> instructions used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.InterfaceSlotCount">
+            <summary>The number of interface slots used.</summary>
+        </member>
+        <member name="P:ComputeSharp.Interop.ShaderInfo.RequiresDoublePrecisionSupport">
+            <summary>Indicates whether support for double precision floating point numbers is required.</summary>
+        </member>
+        <member name="T:ComputeSharp.Shaders.Translation.ShaderCompiler">
+            <summary>
+            A <see langword="class"/> that uses the DXC APIs to compile compute shaders.
+            </summary>
+        </member>
+        <member name="F:ComputeSharp.Shaders.Translation.ShaderCompiler.instance">
+            <summary>
+            The thread local <see cref="T:ComputeSharp.Shaders.Translation.ShaderCompiler"/> instance.
+            This is necessary because the DXC library is strictly single-threaded.
+            </summary>
+        </member>
+        <member name="F:ComputeSharp.Shaders.Translation.ShaderCompiler.dxcCompiler">
+            <summary>
+            The <see cref="T:TerraFX.Interop.DirectX.IDxcCompiler"/> instance to use to create the bytecode for HLSL sources.
+            </summary>
+        </member>
+        <member name="F:ComputeSharp.Shaders.Translation.ShaderCompiler.dxcLibrary">
+            <summary>
+            The <see cref="T:TerraFX.Interop.DirectX.IDxcLibrary"/> instance to use to work with <see cref="F:ComputeSharp.Shaders.Translation.ShaderCompiler.dxcCompiler"/>.
+            </summary>
+        </member>
+        <member name="F:ComputeSharp.Shaders.Translation.ShaderCompiler.dxcIncludeHandler">
+            <summary>
+            The <see cref="T:TerraFX.Interop.DirectX.IDxcIncludeHandler"/> instance used to compile shaders with <see cref="F:ComputeSharp.Shaders.Translation.ShaderCompiler.dxcCompiler"/>.
+            </summary>
+        </member>
+        <member name="M:ComputeSharp.Shaders.Translation.ShaderCompiler.#ctor">
+            <summary>
+            Creates a new <see cref="T:ComputeSharp.Shaders.Translation.ShaderCompiler"/> instance.
+            </summary>
+        </member>
+        <member name="M:ComputeSharp.Shaders.Translation.ShaderCompiler.Finalize">
+            <summary>
+            Destroys the current <see cref="T:ComputeSharp.Shaders.Translation.ShaderCompiler"/> instance.
+            </summary>
+        </member>
+        <member name="P:ComputeSharp.Shaders.Translation.ShaderCompiler.Instance">
+            <summary>
+            Gets a <see cref="T:ComputeSharp.Shaders.Translation.ShaderCompiler"/> instance to use.
+            </summary>
+        </member>
+        <member name="M:ComputeSharp.Shaders.Translation.ShaderCompiler.Compile(System.ReadOnlySpan{System.Char})">
+            <summary>
+            Compiles a new HLSL shader from the input source code.
+            </summary>
+            <param name="source">The HLSL source code to compile.</param>
+            <returns>The bytecode for the compiled shader.</returns>
+        </member>
+        <member name="M:ComputeSharp.Shaders.Translation.ShaderCompiler.ThrowHslsCompilationException(TerraFX.Interop.DirectX.IDxcOperationResult*)">
+            <summary>
+            Throws an exception when a shader compilation fails.
+            </summary>
+            <param name="dxcOperationResult">The input (faulting) operation.</param>
+            <returns>This method always throws and never actually returs.</returns>
+        </member>
+    </members>
+</doc>

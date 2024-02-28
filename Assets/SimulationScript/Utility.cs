@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -146,5 +147,29 @@ public class Utility
                 writer.WriteLine($"{entry.Key},{entry.Value}");
             }
         }
+    }
+
+    public static IEnumerator FadeOutCanvas(GameObject canvas)
+    {
+        CanvasGroup canvasGroup = canvas.GetComponent<CanvasGroup>();
+        while (canvasGroup.alpha > 0)
+        {
+            canvasGroup.alpha -= Time.deltaTime;
+            yield return null;
+        }
+        canvasGroup.interactable = false;
+        yield return null;
+    }
+
+    public static IEnumerator FadeInCanvas(GameObject canvas)
+    {
+        CanvasGroup canvasGroup = canvas.GetComponent<CanvasGroup>();
+        while (canvasGroup.alpha < 1)
+        {
+            canvasGroup.alpha += Time.deltaTime;
+            yield return null;
+        }
+        canvasGroup.interactable = false;
+        yield return null;
     }
 }

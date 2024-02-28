@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>ComputeSharp.Core</id>
+    <version>2.1.0+36155e12707b959c15b0e11089aa44eae24ad006</version>
+    <title>ComputeSharp.Core</title>
+    <authors>Sergio Pedri</authors>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <license type="expression">MIT</license>
+    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
+    <icon>icon.png</icon>
+    <projectUrl>https://github.com/Sergio0694/ComputeSharp/</projectUrl>
+    <iconUrl>https://user-images.githubusercontent.com/10199417/110238403-b8811080-7f41-11eb-8cfe-e47e7e58f05b.png</iconUrl>
+    <description>A library containing basic primitives to support ComputeSharp (this package is not supposed to be referenced directly by developers).</description>
+    <copyright>Copyright (c) 2023 Sergio Pedri</copyright>
+    <tags>dotnet net netcore netstandard csharp library graphics directx shader hlsl compute gpu performance parallel windows</tags>
+    <repository type="git" url="https://github.com/Sergio0694/ComputeSharp/" commit="36155e12707b959c15b0e11089aa44eae24ad006" />
+    <dependencies>
+      <group targetFramework="net6.0" />
+      <group targetFramework=".NETStandard2.0">
+        <dependency id="System.Memory" version="4.5.5" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+</package>

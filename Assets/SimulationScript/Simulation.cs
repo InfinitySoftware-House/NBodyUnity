@@ -9,7 +9,9 @@ using Unity.VisualScripting;
 using System.Linq;
 using Random = UnityEngine.Random;
 using System;
-
+using Image = UnityEngine.UI.Image;
+using Unity.Jobs;
+using Unity.Collections;
 
 public class Simulation : MonoBehaviour
 {
@@ -37,21 +39,23 @@ public class Simulation : MonoBehaviour
     public TMP_Text showKineticEnergyText;
     public TMP_Text showVelocityColorText;
     public OctreeNode octree { get; private set; }
-    private bool runSimulation = true;
+    private bool runSimulation = false;
     private bool isGalaxy = false;
     private bool showMass = false;
     public bool isMainMenu = false;
     public bool showRedshift;
     private bool startCameraRotation;
+    private bool showHUD = true;
+    public GameObject galaxyModePanel;
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
         Vector3 massCenter = position;
-        if (isGalaxy){
-            // massCenter.z += 10;
-            Star blackHole = new Star("Black Hole", 100, 0, Color.black);
-            particles.Add(AddParticle(blackHole, currentScene, massCenter, Vector3.zero));
-        }
+        // if (isGalaxy){
+        //     // massCenter.z += 10;
+        //     Star blackHole = new Star("Black Hole", 100, 0, Color.black);
+        //     particles.Add(AddParticle(blackHole, currentScene, massCenter, Vector3.zero));
+        // }
         List<Star> stars = Utility.GenerateStars(count);
         // Create a cluster of particles
         for (int i = 0; i < count; i++)
@@ -241,6 +245,8 @@ public class Simulation : MonoBehaviour
     {
         yearPassedText.text = yearPassed.ToString() + " Y";
 
+        iterationsPerSecText.color = runSimulation ? Color.white : Color.red;
+
         if (Input.GetKeyDown(KeyCode.H))
         {
             showRedshift = !showRedshift;
@@ -255,7 +261,6 @@ public class Simulation : MonoBehaviour
 
         if(Input.GetKeyDown(KeyCode.Space)){
             runSimulation = !runSimulation;
-            iterationsPerSecText.color = runSimulation ? Color.white : Color.red;
         }
 
         if (Input.GetKeyDown(KeyCode.Mouse0))
@@ -265,7 +270,7 @@ public class Simulation : MonoBehaviour
 
             if (Physics.Raycast(ray, out hit))
             {
-                ParticleEntity selectedParticle = particles.FirstOrDefault(p => p.particleObject == hit.collider.gameObject);
+                ParticleEntity selectedParticle = particles.FirstOrDefault(p => p.name == hit.collider.gameObject.name);
                 if (selectedParticle != null)
                 {
                     ParticleEntity particle = selectedParticle;
@@ -293,7 +298,8 @@ public class Simulation : MonoBehaviour
             ObjectInfoModel objectInfoModel = GetObjectInfoModel(lockedParticle);
             objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
             // Call the coroutine to animate the LookAt function
-            Camera.main.transform.LookAt(lockedParticle.particleObject.transform);
+            GameObject gameObject = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(g => g.name == lockedParticle.name);
+            Camera.main.transform.LookAt(gameObject.transform);
         }
 
         _deltaTime = Time.deltaTime / 20;
@@ -387,8 +393,9 @@ public class Simulation : MonoBehaviour
             // destroy all particles
             foreach (ParticleEntity particle in particles)
             {
-                if (particle != null && particle.particleObject != null && !particle.particleObject.IsDestroyed())
-                    Destroy(particle.particleObject);
+                GameObject gameObject = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(g => g.name == particle.name);
+                if (particle != null && gameObject != null && !gameObject.IsDestroyed())
+                    Destroy(gameObject);
             }
             // garbage collect
             particles = null;
@@ -402,15 +409,16 @@ public class Simulation : MonoBehaviour
             showBloom = !showBloom;
             foreach (ParticleEntity particle in particles)
             {
+                GameObject gameObject = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(g => g.name == particle.name);
                 if (!showBloom)
                 {
-                    particle.particleObject.GetComponent<Renderer>().material.DisableKeyword("_EMISSION");
-                    particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", Color.black);
+                    gameObject.GetComponent<Renderer>().material.DisableKeyword("_EMISSION");
+                    gameObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", Color.black);
                 }
                 else
                 {
-                    particle.particleObject.GetComponent<Renderer>().material.EnableKeyword("_EMISSION");
-                    particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", particle.color);
+                    gameObject.GetComponent<Renderer>().material.EnableKeyword("_EMISSION");
+                    gameObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", particle.color);
                 }
             }
             showBloomText.color = showBloom ? Color.green : Color.white;
@@ -424,8 +432,13 @@ public class Simulation : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.L))
         {
+            showHUD = !showHUD;
+            // if (!showHUD)
+            //     StartCoroutine(Utility.FadeOutCanvas(hud));
+            // else
+            //     StartCoroutine(Utility.FadeInCanvas(hud));
+
             hud.SetActive(!hud.activeSelf);
-            
         }
 
         if (Input.GetKeyDown(KeyCode.V))
@@ -441,15 +454,14 @@ public class Simulation : MonoBehaviour
 
         if(Input.GetKeyDown(KeyCode.G)){
             isGalaxy = !isGalaxy;
-            // Show a message to the user
-            Debug.Log("Galaxy mode: " + (isGalaxy ? "ON" : "OFF"));
+            galaxyModePanel.SetActive(isGalaxy);
         }
 
         // Garbage collect every 1000 iterations
-        if (yearPassed % 1000 == 0 && particles.Count > 1000)
-        {
-            GC.Collect();
-        }
+        // if (yearPassed % 1000 == 0 && particles.Count > 1000)
+        // {
+        //     GC.Collect();
+        // }
 
         if (Input.GetKeyDown(KeyCode.P))
         {
@@ -485,12 +497,17 @@ public class Simulation : MonoBehaviour
             TrailRenderer trailRenderer;
             Renderer particleRenderer;
 
-            foreach (ParticleEntity particle in particles)
+            ParallelOptions parallelOptions = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = SystemInfo.processorCount
+            };
+
+            Parallel.ForEach(particles, parallelOptions, particle =>
             {
                 particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.0f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 particle.acceleration = Vector3.zero;
-            }
+            });
 
             for (int i = 0; i < particles.Count; i++)
             {
@@ -553,103 +570,103 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    // Simulate gravity O(n^2) complexity
-    private void SimulateGravity()
-    {
-        Parallel.For(0, particles.Count, i =>
-        {
-            try
-            {
-                if (i >= particles.Count) return; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-                ParticleEntity currentEntity = particles[i];
-                int startFrom = particles.Count < 3 ? 0 : i + 1;
-                for (int j = startFrom; j < particles.Count; j++) // Inizia da j = i + 1 per evitare calcoli duplicati e autointerazioni
-                {
-                    if (j == i) continue; // Evita calcoli duplicati e autointerazioni
-                    if (j >= particles.Count) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-                    if (i >= particles.Count) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-                    ParticleEntity nextEntity = particles[j];
-                    if (nextEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-                    if (currentEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-                    Vector3 distanceVector = nextEntity.position - currentEntity.position;
-                    float distance = distanceVector.magnitude;
-                    Vector3 forceDirection = distanceVector.normalized;
+    // // Simulate gravity O(n^2) complexity
+    // private void SimulateGravity()
+    // {
+    //     Parallel.For(0, particles.Count, i =>
+    //     {
+    //         try
+    //         {
+    //             if (i >= particles.Count) return; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+    //             ParticleEntity currentEntity = particles[i];
+    //             int startFrom = particles.Count < 3 ? 0 : i + 1;
+    //             for (int j = startFrom; j < particles.Count; j++) // Inizia da j = i + 1 per evitare calcoli duplicati e autointerazioni
+    //             {
+    //                 if (j == i) continue; // Evita calcoli duplicati e autointerazioni
+    //                 if (j >= particles.Count) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+    //                 if (i >= particles.Count) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+    //                 ParticleEntity nextEntity = particles[j];
+    //                 if (nextEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+    //                 if (currentEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
+    //                 Vector3 distanceVector = nextEntity.position - currentEntity.position;
+    //                 float distance = distanceVector.magnitude;
+    //                 Vector3 forceDirection = distanceVector.normalized;
 
-                    if (!CheckCollision(currentEntity, nextEntity))
-                    {
-                        float forceMagnitude = Utility.G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
-                        Vector3 force = forceDirection * forceMagnitude;
+    //                 if (!CheckCollision(currentEntity, nextEntity))
+    //                 {
+    //                     float forceMagnitude = Utility.G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
+    //                     Vector3 force = forceDirection * forceMagnitude;
 
-                        currentEntity.acceleration += force / currentEntity.mass;
-                        nextEntity.acceleration -= force / nextEntity.mass;
-                    }
-                    else if (distance == 0)
-                    {
-                        // MergeParticle(currentEntity, nextEntity);
-                        continue;
-                    }
-                }
-            }
-            catch (System.Exception e)
-            {
-                Debug.Log(e);
-            }
-        });
+    //                     currentEntity.acceleration += force / currentEntity.mass;
+    //                     nextEntity.acceleration -= force / nextEntity.mass;
+    //                 }
+    //                 else if (distance == 0)
+    //                 {
+    //                     // MergeParticle(currentEntity, nextEntity);
+    //                     continue;
+    //                 }
+    //             }
+    //         }
+    //         catch (System.Exception e)
+    //         {
+    //             Debug.Log(e);
+    //         }
+    //     });
 
-        Parallel.ForEach(particles, particle =>
-        {
-            if (particle == null) return;
-            particle.velocity += particle.acceleration * _deltaTime;
+    //     Parallel.ForEach(particles, particle =>
+    //     {
+    //         if (particle == null) return;
+    //         particle.velocity += particle.acceleration * _deltaTime;
 
-            particle.SetPosition(particle.position + particle.velocity * _deltaTime);
+    //         particle.SetPosition(particle.position + particle.velocity * _deltaTime);
 
-            particle.acceleration = Vector3.zero;
+    //         particle.acceleration = Vector3.zero;
 
-            UnityMainThreadDispatcher.Instance().Enqueue(() =>
-            {
-                TrailRenderer trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
-                trailRenderer.emitting = showOrbitLines;
-                Renderer particleRenderer = particle.particleObject.GetComponent<Renderer>();
+    //         UnityMainThreadDispatcher.Instance().Enqueue(() =>
+    //         {
+    //             TrailRenderer trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
+    //             trailRenderer.emitting = showOrbitLines;
+    //             Renderer particleRenderer = particle.particleObject.GetComponent<Renderer>();
 
-                // Aggiorna lo stato del TrailRenderer in base alla variabile 'showOrbitLines'
-                if (trailRenderer != null)
-                {
-                    trailRenderer.emitting = showOrbitLines;
-                }
+    //             // Aggiorna lo stato del TrailRenderer in base alla variabile 'showOrbitLines'
+    //             if (trailRenderer != null)
+    //             {
+    //                 trailRenderer.emitting = showOrbitLines;
+    //             }
 
-                // Aggiorna il colore della particella in base alle sue proprietà
-                if (particleRenderer != null)
-                {
-                    if (showKineticEnergy)
-                    {
-                        particle.kineticEnergy = CalculateKineticEnergy(particle);
-                        particleRenderer.material.color = GetKineticEnergyColor(particle.kineticEnergy);
-                        if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                            particleRenderer.material.DisableKeyword("_EMISSION");
-                    }
-                    else if (showVelocityColor)
-                    {
-                        particleRenderer.material.color = GetVelocityColor(particle.velocity);
-                        if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                            particleRenderer.material.DisableKeyword("_EMISSION");
-                    }
-                    else
-                    {
-                        particleRenderer.material.color = Utility.GetStarColor(particle.temperature);
-                        if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                            particleRenderer.material.EnableKeyword("_EMISSION");
-                    }
-                }
-            });
-        });
+    //             // Aggiorna il colore della particella in base alle sue proprietà
+    //             if (particleRenderer != null)
+    //             {
+    //                 if (showKineticEnergy)
+    //                 {
+    //                     particle.kineticEnergy = CalculateKineticEnergy(particle);
+    //                     particleRenderer.material.color = GetKineticEnergyColor(particle.kineticEnergy);
+    //                     if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+    //                         particleRenderer.material.DisableKeyword("_EMISSION");
+    //                 }
+    //                 else if (showVelocityColor)
+    //                 {
+    //                     particleRenderer.material.color = GetVelocityColor(particle.velocity);
+    //                     if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+    //                         particleRenderer.material.DisableKeyword("_EMISSION");
+    //                 }
+    //                 else
+    //                 {
+    //                     particleRenderer.material.color = Utility.GetStarColor(particle.temperature);
+    //                     if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+    //                         particleRenderer.material.EnableKeyword("_EMISSION");
+    //                 }
+    //             }
+    //         });
+    //     });
 
-        if (Time.time > nextUpdate)
-        {
-            nextUpdate = Time.time + 1;
-            iterationsPerSec = 1 / Time.deltaTime;
-            iterationsPerSecText.text = iterationsPerSec.ToString("F0") + "it/s";
-        }
-    }
+    //     if (Time.time > nextUpdate)
+    //     {
+    //         nextUpdate = Time.time + 1;
+    //         iterationsPerSec = 1 / Time.deltaTime;
+    //         iterationsPerSecText.text = iterationsPerSec.ToString("F0") + "it/s";
+    //     }
+    // }
 
     private Color GetKineticEnergyColor(float kineticEnergy)
     {
@@ -751,5 +768,7 @@ public class Simulation : MonoBehaviour
                 CreateCluster(currentScene6, currentPosition6, 10000);
                 break;
         }
+        isGalaxy = false;
+        galaxyModePanel.SetActive(isGalaxy);
     }
 }
