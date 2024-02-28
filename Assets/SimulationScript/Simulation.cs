@@ -9,9 +9,6 @@ using Unity.VisualScripting;
 using System.Linq;
 using Random = UnityEngine.Random;
 using System;
-using Image = UnityEngine.UI.Image;
-using Unity.Jobs;
-using Unity.Collections;
 
 public class Simulation : MonoBehaviour
 {
