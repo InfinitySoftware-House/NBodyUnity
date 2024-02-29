@@ -47,11 +47,13 @@ public class Simulation : MonoBehaviour
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
+        System.Random random = new();
         Vector3 massCenter = position;
-        List<Star> stars = Utility.GenerateStars(count);
         // Create a cluster of particles
         for (int i = 0; i < count; i++)
         {
+            double roll = random.NextDouble() * 100;
+            Star star = Utility.GenerateStars(roll);
             Vector3 newPosition;
             if(isGalaxy){
                 float innerRadius = 10f; // Inner radius of the ring
@@ -93,7 +95,7 @@ public class Simulation : MonoBehaviour
                 velocity.y = Random.Range(-_starVelocity, _starVelocity);
                 velocity.z = Random.Range(-_starVelocity, _starVelocity);
             }
-            particles.Add(AddParticle(stars[i], currentScene, newPosition, velocity));
+            particles.Add(AddParticle(star, currentScene, newPosition, velocity));
         }
     }
 
