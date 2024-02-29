@@ -18,22 +18,26 @@ public class Utility
             if (roll < 0.0001) // Type O
             {
                 float temperature = (float)(30000 + random.NextDouble() * 20000);
-                stars.Add(new Star("O", 16, temperature, GetStarColor(temperature)));
+                float mass = (float)(16 + random.NextDouble() * 14);
+                stars.Add(new Star("O", mass, temperature, GetStarColor(temperature)));
             }
             else if (roll < 0.13) // Type B
             {
                 float temperature = (float)(10000 + random.NextDouble() * 2000);
-                stars.Add(new Star("B", 2.1f, temperature, GetStarColor(temperature))); // BlueWhite
+                float mass = (float)(2 + random.NextDouble() * 6);
+                stars.Add(new Star("B", mass, temperature, GetStarColor(temperature))); // BlueWhite
             }
             else if (roll < 0.73) // Type A
             {
                 float temperature = (float)(7500 + random.NextDouble() * 1500);
-                stars.Add(new Star("A", 1.4f, temperature, GetStarColor(temperature)));
+                float mass = (float)(1.4 + random.NextDouble() * 0.6);
+                stars.Add(new Star("A", mass, temperature, GetStarColor(temperature)));
             }
             else if (roll < 3.73) // Type F
             {
                 float temperature = (float)(6000 + random.NextDouble() * 1500);
-                stars.Add(new Star("F", 1.15f, temperature, GetStarColor(temperature))); // YellowWhite
+                float mass = (float)(1.15 + random.NextDouble() * 0.35);
+                stars.Add(new Star("F", mass, temperature, GetStarColor(temperature))); // YellowWhite
             }
             else // Types G, K, M
             {
@@ -42,17 +46,20 @@ public class Utility
                 if (subRoll < 1)
                 {
                     float temperature = (float)(5200 + random.NextDouble() * 1500);
-                    stars.Add(new Star("G", 1.0f, temperature, GetStarColor(temperature)));
+                    float mass = (float)(0.85 + random.NextDouble() * 0.15);
+                    stars.Add(new Star("G", mass, temperature, GetStarColor(temperature)));
                 }
                 else if (subRoll < 2)
                 {
                     float temperature = (float)(3700 + random.NextDouble() * 1500);
-                    stars.Add(new Star("K", 0.8f, 3700, GetStarColor(temperature)));
+                    float mass = (float)(0.8 + random.NextDouble() * 0.2);
+                    stars.Add(new Star("K", mass, temperature, GetStarColor(temperature)));
                 }
                 else
                 {
                     float temperature = (float)(2400 + random.NextDouble() * 1300);
-                    stars.Add(new Star("M", 0.45f, 2400, GetStarColor(temperature)));
+                    float mass = (float)(0.45 + random.NextDouble() * 0.35);
+                    stars.Add(new Star("M", mass, mass, GetStarColor(temperature)));
                 }
             }
         }

@@ -108,15 +108,16 @@ public class OctreeNode
     public Vector3 CalculateForceBarnesHut(ParticleEntity particle, OctreeNode node, float theta)
     {
         Vector3 force = Vector3.zero;
+
         if (node == null || particle == null)
         {
-            return force; // Ritorna forza zero se il nodo o la particella sono nulli
+            return force; // Return zero force if the node or particle is null
         }
 
-        // Se il nodo è una foglia (non ha figli) e contiene una particella
+        // If the node is a leaf (has no children) and contains a particle
         if (node.particles.Count == 1 && node.particles[0] != particle)
         {
-            // Calcola la forza diretta tra la particella e la particella nel nodo
+            // Calculate the direct force between the particle and the particle in the node
             Vector3 direction = node.particles[0].position - particle.position;
             float distanceSquared = direction.sqrMagnitude + softeningSquared;
             float forceMagnitude = G * particle.mass * node.particles[0].mass / distanceSquared;
@@ -124,7 +125,7 @@ public class OctreeNode
         }
         else if (node.size / Vector3.Distance(particle.position, node.centerOfMass) < theta)
         {
-            // Se il nodo è sufficientemente lontano, trattalo come un singolo corpo
+            // If the node is far enough, treat it as a single body
             Vector3 direction = node.centerOfMass - particle.position;
             float distanceSquared = direction.sqrMagnitude + softeningSquared;
             float forceMagnitude = G * particle.mass * node.totalMass / distanceSquared;
@@ -132,12 +133,13 @@ public class OctreeNode
         }
         else
         {
-            // Altrimenti, se il nodo non è sufficientemente lontano, calcola ricorsivamente la forza dai figli
+            // Otherwise, if the node is not far enough, recursively calculate the force from the children
             foreach (var child in node.children)
             {
                 force += CalculateForceBarnesHut(particle, child, theta);
             }
         }
+
         return force;
     }
 }

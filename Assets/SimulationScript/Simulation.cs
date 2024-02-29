@@ -48,11 +48,6 @@ public class Simulation : MonoBehaviour
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
         Vector3 massCenter = position;
-        // if (isGalaxy){
-        //     // massCenter.z += 10;
-        //     Star blackHole = new Star("Black Hole", 100, 0, Color.black);
-        //     particles.Add(AddParticle(blackHole, currentScene, massCenter, Vector3.zero));
-        // }
         List<Star> stars = Utility.GenerateStars(count);
         // Create a cluster of particles
         for (int i = 0; i < count; i++)
@@ -151,7 +146,7 @@ public class Simulation : MonoBehaviour
             particle = Instantiate(particlePrefab);
         }
 
-        TrailRenderer trailRenderer = particle.AddComponent<TrailRenderer>();
+        TrailRenderer trailRenderer = particle.GetComponent<TrailRenderer>();
         trailRenderer.startWidth = 0.01f;
         trailRenderer.endWidth = 0.001f;
         trailRenderer.time = 4f;
