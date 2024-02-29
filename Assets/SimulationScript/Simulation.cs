@@ -69,7 +69,7 @@ public class Simulation : MonoBehaviour
                 newPosition = new Vector3(x, y, z);
             }else{
                 // Randomize position within a rectangular area
-                float multiplier = Mathf.Max(20, count / 100); // Multiplier to increase the rectangular area
+                float multiplier = Mathf.Max(20, count / 1000); // Multiplier to increase the rectangular area
                 float minX = position.x - multiplier; // Minimum x coordinate of the rectangular area
                 float maxX = position.x + multiplier; // Maximum x coordinate of the rectangular area
                 float minY = position.y - multiplier; // Minimum y coordinate of the rectangular area
@@ -148,7 +148,7 @@ public class Simulation : MonoBehaviour
             particle = Instantiate(particlePrefab);
         }
 
-        TrailRenderer trailRenderer = particle.GetComponent<TrailRenderer>();
+        TrailRenderer trailRenderer = particle.AddComponent<TrailRenderer>();
         trailRenderer.startWidth = 0.01f;
         trailRenderer.endWidth = 0.001f;
         trailRenderer.time = 4f;
