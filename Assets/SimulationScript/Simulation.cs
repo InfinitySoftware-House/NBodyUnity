@@ -60,7 +60,7 @@ public class Simulation : MonoBehaviour
             Vector3 newPosition;
             if(isGalaxy){
                 float innerRadius = 10f; // Inner radius of the ring
-                float outerRadius = particles.Count > 10000 ? 20f : 14f; // Outer radius of the ring
+                float outerRadius = 100f; // Outer radius of the ring
                 float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
 
                 // Randomize radius within the ring bounds
