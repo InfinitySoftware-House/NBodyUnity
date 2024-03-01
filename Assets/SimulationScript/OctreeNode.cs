@@ -8,10 +8,9 @@ public class OctreeNode
     public Vector3 centerOfMass; // Centro di massa delle particelle all'interno della cella
     public float totalMass; // Massa totale delle particelle all'interno della cella
     public OctreeNode[] children; // Figli di questo nodo nell'octree
-    public List<ParticleEntity> particles; // Particelle all'interno di questa cella
-    private float softeningSquared = 0.01f; // Softening per evitare forze infinite
-    public float G; // Costante gravitazionale
-    private int maxParticlesPerNode = 4; // Numero massimo di particelle per nodo
+    public List<ParticleEntity> particles; // Particelle all'interno di questo nodo
+    private readonly float softeningSquared = 0.01f; // Softening per evitare forze infinite
+    private readonly int maxParticlesPerNode = 4; // Numero massimo di particelle per nodo
 
     // Costruttore
     public OctreeNode(Vector3 center, float size)
@@ -22,7 +21,6 @@ public class OctreeNode
         totalMass = 0f;
         children = new OctreeNode[8];
         particles = new List<ParticleEntity>();
-        G = Utility.G;
     }
 
     // Metodo per aggiungere una particella a questo nodo (o ai suoi figli)
@@ -116,7 +114,7 @@ public class OctreeNode
             // Calculate the direct force between the particle and the particle in the node
             Vector3 direction = node.particles[0].position - particle.position;
             float distanceSquared = direction.sqrMagnitude + softeningSquared;
-            float forceMagnitude = G * particle.mass * node.particles[0].mass / distanceSquared;
+            float forceMagnitude = Utility.G * particle.mass * node.particles[0].mass / distanceSquared;
             force = direction.normalized * forceMagnitude;
         }
         else if (node.size / Vector3.Distance(particle.position, node.centerOfMass) < theta)
@@ -124,7 +122,7 @@ public class OctreeNode
             // If the node is far enough, treat it as a single body
             Vector3 direction = node.centerOfMass - particle.position;
             float distanceSquared = direction.sqrMagnitude + softeningSquared;
-            float forceMagnitude = G * particle.mass * node.totalMass / distanceSquared;
+            float forceMagnitude = Utility.G * particle.mass * node.totalMass / distanceSquared;
             force = direction.normalized * forceMagnitude;
         }
         else

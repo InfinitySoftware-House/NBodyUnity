@@ -9,6 +9,7 @@ using Unity.VisualScripting;
 using System.Linq;
 using Random = UnityEngine.Random;
 using System;
+using System.Collections;
 
 public class Simulation : MonoBehaviour
 {
@@ -304,7 +305,7 @@ public class Simulation : MonoBehaviour
             {
                 CreateOctree();
             }
-            SimulateBarnesHut();
+            StartCoroutine(SimulateBarnesHut());
             yearPassed += 1;
         }
         else
@@ -434,8 +435,9 @@ public class Simulation : MonoBehaviour
     }
 
     // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
-    private void SimulateBarnesHut()
+    IEnumerator SimulateBarnesHut()
     {
+        yield return new WaitForEndOfFrame();
         try
         {
             TrailRenderer trailRenderer;
@@ -512,6 +514,7 @@ public class Simulation : MonoBehaviour
             Debug.Log(e);
             throw;
         }
+        yield return null;
     }
 
     // // Simulate gravity O(n^2) complexity
