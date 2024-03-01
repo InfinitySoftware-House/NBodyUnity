@@ -448,7 +448,7 @@ public class Simulation : MonoBehaviour
 
             Parallel.ForEach(particles, parallelOptions, particle =>
             {
-                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.0f);
+                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 0.5f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 particle.acceleration = Vector3.zero;
             });
