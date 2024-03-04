@@ -3,6 +3,27 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
+/// <summary>
+/// Represents the different simulation modes for the N-body simulation.
+/// </summary>
+public enum SimulationMode
+{
+    /// <summary>
+    /// Random mode generates random initial conditions for the simulation.
+    /// </summary>
+    Random,
+
+    /// <summary>
+    /// Galaxy mode simulates a galaxy-like system of celestial bodies.
+    /// </summary>
+    Galaxy,
+
+    /// <summary>
+    /// Big Bang mode simulates the initial explosion of the universe.
+    /// </summary>
+    BigBang
+}
+
 public class Utility
 {
     public static readonly float G = 6.67430f; // Gravitational constant

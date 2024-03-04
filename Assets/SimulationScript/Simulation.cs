@@ -9,8 +9,6 @@ using Unity.VisualScripting;
 using System.Linq;
 using Random = UnityEngine.Random;
 using System;
-using System.Collections;
-using System.IO;
 using System.Diagnostics;
 using Debug = UnityEngine.Debug;
 
@@ -41,14 +39,15 @@ public class Simulation : MonoBehaviour
     public TMP_Text showVelocityColorText;
     public OctreeNode octree { get; private set; }
     private bool runSimulation = false;
-    private bool isGalaxy = false;
     private bool showMass = false;
     public bool isMainMenu = false;
     public bool showRedshift;
     private bool startCameraRotation;
     private bool showHUD = true;
     public GameObject galaxyModePanel;
+    public GameObject bigBangModePanel;
     bool propertyChanged = false;
+    private SimulationMode simulationMode = SimulationMode.Random;
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
@@ -59,46 +58,50 @@ public class Simulation : MonoBehaviour
         {
             double roll = random.NextDouble() * 100;
             Star star = Utility.GenerateStars(roll);
-            Vector3 newPosition;
-            if(isGalaxy){
-                float innerRadius = 10f; // Inner radius of the ring
-                float outerRadius = 100f; // Outer radius of the ring
-                float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
-
-                // Randomize radius within the ring bounds
-                float radius = Random.Range(innerRadius, outerRadius);
-                // Calculate x, y, z coordinates for a ring-shaped galaxy
-                float x = position.x + radius * Mathf.Cos(angle);
-                float y = position.y + radius * Mathf.Sin(angle);
-                float z = position.z; // Assuming you want the ring to be horizontal, keep z constant
-                newPosition = new Vector3(x, y, z);
-            }else{
-                // Randomize position within a rectangular area
-                float multiplier = Mathf.Max(20, count / 1000); // Multiplier to increase the rectangular area
-                float minX = position.x - multiplier; // Minimum x coordinate of the rectangular area
-                float maxX = position.x + multiplier; // Maximum x coordinate of the rectangular area
-                float minY = position.y - multiplier; // Minimum y coordinate of the rectangular area
-                float maxY = position.y + multiplier; // Maximum y coordinate of the rectangular area
-                float minZ = position.z - multiplier; // Minimum z coordinate of the rectangular area
-                float maxZ = position.z + multiplier; // Maximum z coordinate of the rectangular area
-
-                float x = Random.Range(minX, maxX);
-                float y = Random.Range(minY, maxY);
-                float z = Random.Range(minZ, maxZ);
-                newPosition = new Vector3(x, y, z);
-            }
-
+            Vector3 newPosition = Vector3.zero;
             Vector3 velocity = Vector3.zero;
-            if (isGalaxy){
-                // make the stars rotate around the center
-                Vector3 direction = massCenter - newPosition;
-                direction.z = 10;
-                velocity = Vector3.Cross(direction, Vector3.forward);
-            } else {
-                // Randomize velocity
-                velocity.x = Random.Range(-_starVelocity, _starVelocity);
-                velocity.y = Random.Range(-_starVelocity, _starVelocity);
-                velocity.z = Random.Range(-_starVelocity, _starVelocity);
+
+            switch(simulationMode)
+            {
+                case SimulationMode.Galaxy:
+                    float innerRadius = 10f; // Inner radius of the ring
+                    float outerRadius = 100f; // Outer radius of the ring
+                    float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
+
+                    // Randomize radius within the ring bounds
+                    float radius = Random.Range(innerRadius, outerRadius);
+                    // Calculate x, y, z coordinates for a ring-shaped galaxy
+                    float x = position.x + radius * Mathf.Cos(angle);
+                    float y = position.y + radius * Mathf.Sin(angle);
+                    float z = position.z; // Assuming you want the ring to be horizontal, keep z constant
+                    newPosition = new Vector3(x, y, z);
+                    // make the stars rotate around the center
+                    Vector3 direction = massCenter - newPosition;
+                    direction.z = 10;
+                    velocity = Vector3.Cross(direction, Vector3.forward);
+                break;
+                case SimulationMode.Random:
+                    // Randomize position within a rectangular area
+                    float multiplier = Mathf.Max(20, count / 1000); // Multiplier to increase the rectangular area
+                    float minX = position.x - multiplier; // Minimum x coordinate of the rectangular area
+                    float maxX = position.x + multiplier; // Maximum x coordinate of the rectangular area
+                    float minY = position.y - multiplier; // Minimum y coordinate of the rectangular area
+                    float maxY = position.y + multiplier; // Maximum y coordinate of the rectangular area
+                    float minZ = position.z - multiplier; // Minimum z coordinate of the rectangular area
+                    float maxZ = position.z + multiplier; // Maximum z coordinate of the rectangular area
+
+                    x = Random.Range(minX, maxX);
+                    y = Random.Range(minY, maxY);
+                    z = Random.Range(minZ, maxZ);
+                    newPosition = new Vector3(x, y, z);
+                    // Randomize velocity
+                    velocity.x = Random.Range(-_starVelocity, _starVelocity);
+                    velocity.y = Random.Range(-_starVelocity, _starVelocity);
+                    velocity.z = Random.Range(-_starVelocity, _starVelocity);
+                break;
+                case SimulationMode.BigBang:
+                    newPosition = position + Random.insideUnitSphere * 10;
+                break;
             }
             particles.Add(AddParticle(star, currentScene, newPosition, velocity));
         }
@@ -303,7 +306,7 @@ public class Simulation : MonoBehaviour
             Camera.main.transform.LookAt(gameObject.transform);
         }
 
-        _deltaTime = Time.deltaTime / 20;
+        _deltaTime = Time.deltaTime / 10;
 
         if (runSimulation)
         {
@@ -365,6 +368,21 @@ public class Simulation : MonoBehaviour
             propertyChanged = true;
         }
 
+        // Big Bang mode
+        if (Input.GetKeyDown(KeyCode.N))
+        {
+            if(simulationMode == SimulationMode.BigBang)
+            {
+                simulationMode = SimulationMode.Random;
+            }
+            else
+            {
+                simulationMode = SimulationMode.BigBang;
+            }
+            galaxyModePanel.SetActive(simulationMode == SimulationMode.Galaxy);
+            bigBangModePanel.SetActive(simulationMode == SimulationMode.BigBang);
+        }
+
         if (Input.GetKeyDown(KeyCode.K))
         {
             showKineticEnergy = !showKineticEnergy;
@@ -392,8 +410,16 @@ public class Simulation : MonoBehaviour
         }
 
         if(Input.GetKeyDown(KeyCode.G)){
-            isGalaxy = !isGalaxy;
-            galaxyModePanel.SetActive(isGalaxy);
+            if(simulationMode == SimulationMode.Galaxy)
+            {
+                simulationMode = SimulationMode.Random;
+            }
+            else
+            {
+                simulationMode = SimulationMode.Galaxy;
+            }
+            galaxyModePanel.SetActive(simulationMode == SimulationMode.Galaxy);
+            bigBangModePanel.SetActive(simulationMode == SimulationMode.BigBang);
         }
 
         // Garbage collect every 1000 iterations
@@ -438,7 +464,7 @@ public class Simulation : MonoBehaviour
             stopwatch.Start();
             Parallel.ForEach(particles, parallelOptions, particle =>
             {
-                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.0f);
+                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.2f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 particle.acceleration = Vector3.zero;
             });
@@ -584,7 +610,8 @@ public class Simulation : MonoBehaviour
         currentPosition.z += zPositionConstant;
         Scene currentScene = SceneManager.GetActiveScene();
         CreateCluster(currentScene, currentPosition, count);
-        isGalaxy = false;
-        galaxyModePanel.SetActive(isGalaxy);
+        simulationMode = SimulationMode.Random;
+        galaxyModePanel.SetActive(false);
+        bigBangModePanel.SetActive(false);
     }
 }
