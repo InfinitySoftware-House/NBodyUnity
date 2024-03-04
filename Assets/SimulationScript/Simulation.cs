@@ -10,6 +10,7 @@ using System.Linq;
 using Random = UnityEngine.Random;
 using System;
 using System.Collections;
+using System.IO;
 
 public class Simulation : MonoBehaviour
 {
@@ -336,6 +337,7 @@ public class Simulation : MonoBehaviour
             // newStarVelocityText.text = "v " + _starVelocity.ToString();
         }
 
+        // Reset the simulation
         if (Input.GetKeyDown(KeyCode.R))
         {
             // reset the scene
@@ -422,11 +424,6 @@ public class Simulation : MonoBehaviour
         return 0.5f * particle.mass * particle.velocity.sqrMagnitude;
     }
 
-    private Color GetMassColor(float mass)
-    {
-        return Color.Lerp(Color.blue, Color.red, mass / 1000);
-    }
-
     // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
     void SimulateBarnesHut()
     {
@@ -441,16 +438,14 @@ public class Simulation : MonoBehaviour
 
             Parallel.ForEach(particles, parallelOptions, particle =>
             {
-                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 0.5f);
+                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.0f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 particle.acceleration = Vector3.zero;
             });
-
             for (int i = 0; i < particles.Count; i++)
             {
                 ParticleEntity particle = particles[i];
                 particle.SetPosition(particle.position + particle.velocity * _deltaTime);
-
                 // Cache components
                 trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
 
@@ -463,7 +458,6 @@ public class Simulation : MonoBehaviour
                 // Update the color of the particle based on its properties only when a property is changed
                 UpdateParticleColor(particle, propertyChanged);
             }
-
             UpdatePerformanceMetrics();
         }
         catch (Exception e)
