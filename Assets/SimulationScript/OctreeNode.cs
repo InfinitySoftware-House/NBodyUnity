@@ -9,8 +9,9 @@ public class OctreeNode
     public float totalMass; // Massa totale delle particelle all'interno della cella
     public OctreeNode[] children; // Figli di questo nodo nell'octree
     public List<ParticleEntity> particles; // Particelle all'interno di questo nodo
-    private readonly float softeningSquared = 0.01f; // Softening per evitare forze infinite
-    private readonly int maxParticlesPerNode = 4; // Numero massimo di particelle per nodo
+    private readonly float softeningSquared = 0.001f; // Softening per evitare forze infinite
+    private readonly int maxParticlesPerNode = 6; // Numero massimo di particelle per nodo
+    private bool populated = false; // Flag per indicare se il nodo è stato popolato
 
     // Costruttore
     public OctreeNode(Vector3 center, float size)
@@ -31,11 +32,13 @@ public class OctreeNode
         {
             int index = GetChildIndexForParticle(particle.position);
             children[index].AddParticle(particle);
+            children[index].populated = true;
         }
         else
         {
             // Altrimenti, aggiungi la particella a questo nodo
             particles.Add(particle);
+            populated = true;
 
             // Se dopo l'aggiunta la cella supera un certo limite di particelle,
             // dividila creando nuovi nodi figli e redistribuendo le particelle
@@ -47,9 +50,14 @@ public class OctreeNode
                 {
                     int index = GetChildIndexForParticle(existingParticle.position);
                     children[index].AddParticle(existingParticle);
+                    children[index].populated = true;
                 }
                 // Pulisci la lista delle particelle dal nodo corrente
                 particles.Clear();
+            }
+            else if (particles.Count == 0)
+            {
+                populated = false;
             }
         }
 
@@ -60,15 +68,13 @@ public class OctreeNode
     // Metodo per suddividere questo nodo creando otto nuovi figli
     private void Subdivide()
     {
+        Vector3 halfSize = new Vector3(size / 8, size / 8, size / 8);
         for (int i = 0; i < 8; i++)
         {
-            // Calcola il centro per ogni nuovo figlio
-            // Attenzione: la logica qui presuppone che il punto (0,0,0) sia al centro della cella corrente.
-            // Se il tuo sistema di coordinate è diverso, potresti dover adattare.
             Vector3 childCenter = center + new Vector3(
-                (i % 2 == 0 ? -size : size) / 4,  // Cambia per l'asse X
-                (i / 4 == 0 ? -size : size) / 4,  // Cambia per l'asse Y
-                (i / 2 % 2 == 0 ? -size : size) / 4); // Cambia per l'asse Z
+                (i % 2 == 0 ? -1 : 1) * halfSize.x,
+                (i / 4 == 0 ? -1 : 1) * halfSize.y,
+                (i / 2 % 2 == 0 ? -1 : 1) * halfSize.z);
             children[i] = new OctreeNode(childCenter, size / 2);
         }
     }
@@ -76,21 +82,11 @@ public class OctreeNode
     // Metodo per determinare in quale figlio dovrebbe andare una particella data la sua posizione
     private int GetChildIndexForParticle(Vector3 position)
     {
-        int index = 0;
-        if (position.x >= center.x)
-        {
-            index += 1;
-        }
-        if (position.y >= center.y)
-        {
-            index += 4;
-        }
-        if (position.z >= center.z)
-        {
-            index += 2;
-        }
-        return index;
+        return (position.x >= center.x ? 1 : 0) +
+               (position.y >= center.y ? 4 : 0) +
+               (position.z >= center.z ? 2 : 0);
     }
+
 
     // Metodo per aggiornare la massa totale e il centro di massa del nodo
     private void UpdateMassDistribution(ParticleEntity particle)
@@ -103,10 +99,7 @@ public class OctreeNode
     {
         Vector3 force = Vector3.zero;
 
-        if (node == null || particle == null)
-        {
-            return force; // Return zero force if the node or particle is null
-        }
+        if (node == null || particle == null || !node.populated) return force; // Return zero force if the node or particle is null
 
         // If the node is a leaf (has no children) and contains a particle
         if (node.particles.Count == 1 && node.particles[0] != particle)

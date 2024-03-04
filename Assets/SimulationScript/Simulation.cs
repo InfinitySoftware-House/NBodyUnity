@@ -11,6 +11,8 @@ using Random = UnityEngine.Random;
 using System;
 using System.Collections;
 using System.IO;
+using System.Diagnostics;
+using Debug = UnityEngine.Debug;
 
 public class Simulation : MonoBehaviour
 {
@@ -118,15 +120,17 @@ public class Simulation : MonoBehaviour
 
     private void CreateOctree()
     {
+        Stopwatch stopwatch = new Stopwatch();
+        stopwatch.Start();
         Vector3 massCenterForSim = GetMassCenter();
         int universeSize = GetUniverseSize();
         octree = new OctreeNode(massCenterForSim, universeSize);
-
-        // Add all particles to the octree
-        foreach (var particle in particles)
+        foreach (ParticleEntity particle in particles)
         {
             octree.AddParticle(particle);
         }
+        stopwatch.Stop();
+        Debug.Log("Octree creation time: " + stopwatch.ElapsedMilliseconds + "ms");
     }
 
     private Vector3 GetMassCenter()
@@ -371,11 +375,6 @@ public class Simulation : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.L))
         {
             showHUD = !showHUD;
-            // if (!showHUD)
-            //     StartCoroutine(Utility.FadeOutCanvas(hud));
-            // else
-            //     StartCoroutine(Utility.FadeInCanvas(hud));
-
             hud.SetActive(!hud.activeSelf);
         }
 
@@ -427,21 +426,26 @@ public class Simulation : MonoBehaviour
     // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
     void SimulateBarnesHut()
     {
+        Stopwatch stopwatch = new();
         try
         {
             TrailRenderer trailRenderer;
 
-            ParallelOptions parallelOptions = new ParallelOptions
+            ParallelOptions parallelOptions = new()
             {
                 MaxDegreeOfParallelism = SystemInfo.processorCount
             };
-
+            stopwatch.Start();
             Parallel.ForEach(particles, parallelOptions, particle =>
             {
                 particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.0f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 particle.acceleration = Vector3.zero;
             });
+
+            stopwatch.Stop();
+            Debug.Log("Barnes-Hut simulation time: " + stopwatch.ElapsedMilliseconds + "ms");
+
             for (int i = 0; i < particles.Count; i++)
             {
                 ParticleEntity particle = particles[i];
