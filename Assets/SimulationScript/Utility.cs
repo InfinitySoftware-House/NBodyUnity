@@ -29,6 +29,7 @@ public class Utility
     public static readonly float G = 6.67430f; // Gravitational constant
     public const float C = 299792458f; // Speed of light in m/s
     private static readonly System.Random random = new();
+    public static ComputeShader computeShader;
 
     public static Star GenerateStars(double roll)
     {

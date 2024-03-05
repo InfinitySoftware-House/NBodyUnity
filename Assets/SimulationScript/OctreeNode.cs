@@ -1,8 +1,13 @@
 using System.Collections.Generic;
-using Unity.Collections;
-using Unity.Jobs;
-using UnityEngine;
 using Vector3 = UnityEngine.Vector3;
+
+public struct Particle
+{
+    public Vector3 acceleration;
+    public Vector3 velocity;
+    public Vector3 position;
+    public float mass;
+}
 
 public class OctreeNode {
     public Vector3 Center { get; private set; } // Center of the cell
@@ -72,6 +77,7 @@ public class OctreeNode {
         TotalMass += particle.mass;
         CenterOfMass = (CenterOfMass * (TotalMass - particle.mass) + particle.position * particle.mass) / TotalMass;
     }
+
     public Vector3 CalculateForceBarnesHut(ParticleEntity particle, OctreeNode node, float theta)
     {
         // Early out if node ìor particle is null, or node is not populated
@@ -80,7 +86,7 @@ public class OctreeNode {
         // Pre-calculate frequently used values
         Vector3 particlePosition = particle.position;
         float particleMass = particle.mass;
-        Vector3 nodeCOM = node.CenterOfMass;
+        Vector3 nodeCenterOfMass = node.CenterOfMass;
         float softeningSquared = SofteningSquared;
 
         // Calculate force based on node type
@@ -91,9 +97,9 @@ public class OctreeNode {
             float distanceSquared = direction.sqrMagnitude + softeningSquared;
             force = direction.normalized * (Utility.G * particleMass * node.Particles[0].mass / distanceSquared);
         }
-        else if (node.Size / Vector3.Distance(particlePosition, nodeCOM) < theta)
+        else if (node.Size / Vector3.Distance(particlePosition, nodeCenterOfMass) < theta)
         {
-            Vector3 direction = nodeCOM - particlePosition;
+            Vector3 direction = nodeCenterOfMass - particlePosition;
             float distanceSquared = direction.sqrMagnitude + softeningSquared;
             force = direction.normalized * (Utility.G * particleMass * node.TotalMass / distanceSquared);
         }

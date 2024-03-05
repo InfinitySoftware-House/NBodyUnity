@@ -48,6 +48,7 @@ public class Simulation : MonoBehaviour
     public GameObject bigBangModePanel;
     bool propertyChanged = false;
     private SimulationMode simulationMode = SimulationMode.Random;
+    public ComputeShader computeShader;
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
@@ -73,7 +74,7 @@ public class Simulation : MonoBehaviour
                     // Calculate x, y, z coordinates for a ring-shaped galaxy
                     float x = position.x + radius * Mathf.Cos(angle);
                     float y = position.y + radius * Mathf.Sin(angle);
-                    float z = position.z; // Assuming you want the ring to be horizontal, keep z constant
+                    float z = position.z + Random.Range(-5, 5);
                     newPosition = new Vector3(x, y, z);
                     // make the stars rotate around the center
                     Vector3 direction = massCenter - newPosition;
@@ -109,8 +110,12 @@ public class Simulation : MonoBehaviour
 
     private int GetUniverseSize()
     {
+        ParallelOptions parallelOptions = new()
+        {
+            MaxDegreeOfParallelism = SystemInfo.processorCount
+        };
         int universeSize = 0;
-        Parallel.ForEach(particles, particle =>
+        Parallel.ForEach(particles, parallelOptions, particle =>
         {
             float distance = Vector3.Distance(particle.position, Vector3.zero);
             if (distance > universeSize)
@@ -220,6 +225,7 @@ public class Simulation : MonoBehaviour
     // Start is called before the first frame update
     private void Start()
     {
+        Utility.computeShader = computeShader;
         objectInfoObject.SetActive(false);
         particlesCountText.text = "Objects: " + particles.Count.ToString();
         iterationsPerSecText.text = "0it/s";

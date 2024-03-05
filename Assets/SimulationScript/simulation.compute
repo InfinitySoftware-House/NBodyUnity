@@ -1,0 +1,29 @@
+#pragma kernel GetUniverseSize
+
+struct Particle {
+    float3 position;
+    float3 velocity;
+    float3 acceleration;
+    float mass;
+};
+
+RWStructuredBuffer<Particle> particles; // Buffer for particles
+int particlesCount; // Count of particles
+
+float result; // Result of the kernel
+
+[numthreads(64, 1, 1)] // Define the thread group size
+void GetUniverseSize(uint3 DTid : SV_DispatchThreadID) 
+{
+    int universeSize = 0;
+    for (int i = 0; i < particlesCount; i++)
+    {
+        Particle particle = particles[i];
+        float distance = distance(particle.position, float3(0, 0, 0));
+        if (distance > universeSize)
+        {
+            universeSize = (int)distance;
+        }
+    }
+    result = universeSize;
+}
