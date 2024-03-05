@@ -274,7 +274,7 @@ public class Simulation : MonoBehaviour
 
             if (Physics.Raycast(ray, out hit))
             {
-                ParticleEntity selectedParticle = particles.FirstOrDefault(p => p.name == hit.collider.gameObject.name);
+                ParticleEntity selectedParticle = particles.FirstOrDefault(p => p.particleObject == hit.collider.gameObject);
                 if (selectedParticle != null)
                 {
                     ParticleEntity particle = selectedParticle;
@@ -302,7 +302,7 @@ public class Simulation : MonoBehaviour
             ObjectInfoModel objectInfoModel = GetObjectInfoModel(lockedParticle);
             objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
             // Call the coroutine to animate the LookAt function
-            GameObject gameObject = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(g => g.name == lockedParticle.name);
+            GameObject gameObject = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(g => g == lockedParticle.particleObject);
             Camera.main.transform.LookAt(gameObject.transform);
         }
 
@@ -438,6 +438,13 @@ public class Simulation : MonoBehaviour
             Vector3 universeCenter = GetMassCenter();
             RotateTheCameraAround(universeCenter, 14);
         }   
+    
+        // keep camera looking at the center of the universe
+        // if (particles.Count > 0)
+        // {
+        //     Vector3 universeCenter = GetMassCenter();
+        //     Camera.main.transform.LookAt(universeCenter);
+        // }
     }
 
     private void RotateTheCameraAround(Vector3 position, float speed)
@@ -464,7 +471,7 @@ public class Simulation : MonoBehaviour
             stopwatch.Start();
             Parallel.ForEach(particles, parallelOptions, particle =>
             {
-                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.2f);
+                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.5f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 particle.acceleration = Vector3.zero;
             });

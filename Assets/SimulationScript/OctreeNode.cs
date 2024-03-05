@@ -1,21 +1,21 @@
 using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Jobs;
+using UnityEngine;
 using Vector3 = UnityEngine.Vector3;
 
-public class OctreeNode
-{
-    public Vector3 Center; // Centro della cella
-    public float Size; // Lunghezza del lato della cella
-    public Vector3 CenterOfMass; // Centro di massa delle particelle all'interno della cella
-    public float TotalMass; // Massa totale delle particelle all'interno della cella
-    public OctreeNode[] Children; // Figli di questo nodo nell'octree
-    public List<ParticleEntity> Particles; // Particelle all'interno di questo nodo
-    private readonly float SofteningSquared = 0.001f; // Softening per evitare forze infinite
-    private readonly int MaxParticlesPerNode = 120; // Numero massimo di particelle per nodo
-    private bool Populated = false; // Flag per indicare se il nodo è stato popolato
+public class OctreeNode {
+    public Vector3 Center { get; private set; } // Center of the cell
+    public float Size { get; private set; } // Length of the cell's side
+    public Vector3 CenterOfMass { get; private set; } // Center of mass of the particles within the cell
+    public float TotalMass { get; private set; } // Total mass of the particles within the cell
+    public OctreeNode[] Children { get; private set; } // Children of this node in the octree
+    public List<ParticleEntity> Particles { get; private set; } // Particles inside this node
+    private const float SofteningSquared = 0.001f; // Softening to avoid infinite forces
+    private const int MaxParticlesPerNode = 120; // Maximum number of particles per node
 
-    // Costruttore
-    public OctreeNode(Vector3 center, float size)
-    {
+    // Constructor
+    public OctreeNode(Vector3 center, float size) {
         Center = center;
         Size = size;
         CenterOfMass = Vector3.zero;
@@ -24,104 +24,84 @@ public class OctreeNode
         Particles = new List<ParticleEntity>();
     }
 
-    // Metodo per aggiungere una particella a questo nodo (o ai suoi figli)
-    public void AddParticle(ParticleEntity particle)
-    {
-        // Se il nodo ha figli, aggiungi la particella a uno dei figli
-        if (Children[0] != null)
-        {
+    // Method to add a particle to this node (or its children)
+    public void AddParticle(ParticleEntity particle) {
+        if (Children[0] != null) {
             int index = GetChildIndexForParticle(particle.position);
             Children[index].AddParticle(particle);
-            Children[index].Populated = true;
-        }
-        else
-        {
-            // Altrimenti, aggiungi la particella a questo nodo
+        } else {
             Particles.Add(particle);
-            Populated = true;
-
-            // Se dopo l'aggiunta la cella supera un certo limite di particelle,
-            // dividila creando nuovi nodi figli e redistribuendo le particelle
-            if (Particles.Count > MaxParticlesPerNode) // Soglia arbitraria
-            {
+            if (Particles.Count > MaxParticlesPerNode) {
                 Subdivide();
-                // Dopo la suddivisione, riposiziona le particelle esistenti nei nuovi figli
-                foreach (var existingParticle in Particles)
-                {
-                    int index = GetChildIndexForParticle(existingParticle.position);
-                    Children[index].AddParticle(existingParticle);
-                    Children[index].Populated = true;
-                }
-                // Pulisci la lista delle particelle dal nodo corrente
-                Particles.Clear();
-            }
-            else if (Particles.Count == 0)
-            {
-                Populated = false;
+                RedistributeParticles();
+                Particles.Clear(); // Clear the particles list from the current node after redistribution
             }
         }
-
-        // Aggiorna il centro di massa e la massa totale
-        UpdateMassDistribution(particle);
+        UpdateMassDistribution(particle); // Update the mass distribution whenever a particle is added
     }
 
-    // Metodo per suddividere questo nodo creando otto nuovi figli
-    private void Subdivide()
-    {
-        Vector3 halfSize = new(Size / 8, Size / 8, Size / 8);
-        for (int i = 0; i < 8; i++)
-        {
+    // Method for subdividing this node by creating eight new children
+    private void Subdivide() {
+        Vector3 halfSize = new Vector3(Size / 8, Size / 8, Size / 8); // Half of halfSize for correct child sizing
+        for (int i = 0; i < 8; i++) {
             Vector3 childCenter = Center + new Vector3(
-                (i % 2 == 0 ? -1 : 1) * halfSize.x,
-                (i / 4 == 0 ? -1 : 1) * halfSize.y,
-                (i / 2 % 2 == 0 ? -1 : 1) * halfSize.z);
+                i % 2 == 0 ? -halfSize.x : halfSize.x,
+                i / 4 == 0 ? -halfSize.y : halfSize.y,
+                i / 2 % 2 == 0 ? -halfSize.z : halfSize.z);
             Children[i] = new OctreeNode(childCenter, Size / 2);
         }
     }
 
-    // Metodo per determinare in quale figlio dovrebbe andare una particella data la sua posizione
-    private int GetChildIndexForParticle(Vector3 position)
-    {
+    // Redistribute existing particles into new children after subdivision
+    private void RedistributeParticles() {
+        foreach (var particle in Particles) {
+            int index = GetChildIndexForParticle(particle.position);
+            Children[index].AddParticle(particle);
+        }
+    }
+
+    // Method to determine in which child a particle should go based on its position
+    private int GetChildIndexForParticle(Vector3 position) {
         return (position.x >= Center.x ? 1 : 0) +
                (position.y >= Center.y ? 4 : 0) +
                (position.z >= Center.z ? 2 : 0);
     }
 
-
-    // Metodo per aggiornare la massa totale e il centro di massa del nodo
-    private void UpdateMassDistribution(ParticleEntity particle)
-    {
+    // Method to update the total mass and the center of mass of the node
+    private void UpdateMassDistribution(ParticleEntity particle) {
         TotalMass += particle.mass;
         CenterOfMass = (CenterOfMass * (TotalMass - particle.mass) + particle.position * particle.mass) / TotalMass;
     }
-
     public Vector3 CalculateForceBarnesHut(ParticleEntity particle, OctreeNode node, float theta)
     {
+        // Early out if node ìor particle is null, or node is not populated
+        if (node == null || particle == null) return Vector3.zero;
+
+        // Pre-calculate frequently used values
+        Vector3 particlePosition = particle.position;
+        float particleMass = particle.mass;
+        Vector3 nodeCOM = node.CenterOfMass;
+        float softeningSquared = SofteningSquared;
+
+        // Calculate force based on node type
         Vector3 force = Vector3.zero;
-
-        if (node == null || particle == null || !node.Populated) return force; // Return zero force if the node or particle is null
-
-        // If the node is a leaf (has no children) and contains a particle
         if (node.Particles.Count == 1 && node.Particles[0] != particle)
         {
-            // Calculate the direct force between the particle and the particle in the node
-            Vector3 direction = node.Particles[0].position - particle.position;
-            float forceMagnitude = Utility.G * particle.mass * node.Particles[0].mass / direction.sqrMagnitude + SofteningSquared;
-            force = direction.normalized * forceMagnitude;
+            Vector3 direction = node.Particles[0].position - particlePosition;
+            float distanceSquared = direction.sqrMagnitude + softeningSquared;
+            force = direction.normalized * (Utility.G * particleMass * node.Particles[0].mass / distanceSquared);
         }
-        else if (node.Size / Vector3.Distance(particle.position, node.CenterOfMass) < theta)
+        else if (node.Size / Vector3.Distance(particlePosition, nodeCOM) < theta)
         {
-            // If the node is far enough, treat it as a single body
-            Vector3 direction = node.CenterOfMass - particle.position;
-            float forceMagnitude = Utility.G * particle.mass * node.TotalMass / direction.sqrMagnitude + SofteningSquared;
-            force = direction.normalized * forceMagnitude;
+            Vector3 direction = nodeCOM - particlePosition;
+            float distanceSquared = direction.sqrMagnitude + softeningSquared;
+            force = direction.normalized * (Utility.G * particleMass * node.TotalMass / distanceSquared);
         }
         else
         {
-            // Otherwise, if the node is not far enough, recursively calculate the force from the children
-            for (int i = 0; i < node.Children.Length; i++)
+            foreach (var childNode in node.Children)
             {
-                force += CalculateForceBarnesHut(particle, node.Children[i], theta);
+                force += CalculateForceBarnesHut(particle, childNode, theta);
             }
         }
 
