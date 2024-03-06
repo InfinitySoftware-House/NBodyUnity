@@ -1,29 +1,51 @@
-#pragma kernel GetUniverseSize
+#pragma kernel NBodySimulation
 
+// Define the structure of a particle
 struct Particle {
     float3 position;
     float3 velocity;
-    float3 acceleration;
     float mass;
 };
 
-RWStructuredBuffer<Particle> particles; // Buffer for particles
-int particlesCount; // Count of particles
+// Use a Read-Write StructuredBuffer to read and update particle information
+RWStructuredBuffer<Particle> particles;
 
-float result; // Result of the kernel
+// Constants and simulation parameters
+static const float G = 6.674300; // Gravitational constant, adjust as per your simulation scale
+float deltaTime; // Time step for simulation
 
-[numthreads(64, 1, 1)] // Define the thread group size
-void GetUniverseSize(uint3 DTid : SV_DispatchThreadID) 
-{
-    int universeSize = 0;
-    for (int i = 0; i < particlesCount; i++)
-    {
-        Particle particle = particles[i];
-        float distance = distance(particle.position, float3(0, 0, 0));
-        if (distance > universeSize)
-        {
-            universeSize = (int)distance;
+// Number of particles in the buffer
+uint particlesCount;
+
+// The compute shader kernel
+[numthreads(256, 1, 1)] // Adjust the thread group size based on your GPU's capabilities and total particles
+void NBodySimulation(uint3 DTid : SV_DispatchThreadID) {
+    uint index = DTid.x;
+
+    // Check if the index is within the range of the buffer
+    if (index < particlesCount) {
+        Particle p = particles[index];
+        float3 totalForce = float3(0, 0, 0); // Initialize the total force to zero
+
+        // Calculate the force exerted on this particle by all other particles
+        for (uint j = 0; j < particlesCount; j++) {
+            if (j != index) { // Avoid self-interaction
+				Particle other = particles[j];
+				float3 dir = other.position - p.position;
+				float distance = length(dir);
+				float forceMagnitude = G * (p.mass * other.mass) / (distance * distance); // Add a small value to avoid division by zero
+				float3 forceDirection = normalize(dir);
+				float3 force = forceDirection * forceMagnitude;
+				totalForce += force;
+            }
         }
+
+        // Update the particle's velocity and position
+        float3 acceleration = totalForce / p.mass;
+        p.velocity += acceleration * deltaTime;
+        p.position += p.velocity * deltaTime;
+
+        // Write the updated particle back to the buffer
+        particles[index] = p;
     }
-    result = universeSize;
 }

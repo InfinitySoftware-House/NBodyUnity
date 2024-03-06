@@ -11,6 +11,7 @@ using Random = UnityEngine.Random;
 using System;
 using System.Diagnostics;
 using Debug = UnityEngine.Debug;
+using System.Runtime.InteropServices;
 
 public class Simulation : MonoBehaviour
 {
@@ -49,6 +50,8 @@ public class Simulation : MonoBehaviour
     bool propertyChanged = false;
     private SimulationMode simulationMode = SimulationMode.Random;
     public ComputeShader computeShader;
+    ComputeBuffer particleBuffer;
+    ParticleGPU[] particlesGPU;
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
@@ -79,7 +82,7 @@ public class Simulation : MonoBehaviour
                     // make the stars rotate around the center
                     Vector3 direction = massCenter - newPosition;
                     direction.z = 10;
-                    velocity = Vector3.Cross(direction, Vector3.forward);
+                    // velocity = Vector3.Cross(direction, Vector3.forward);
                 break;
                 case SimulationMode.Random:
                     // Randomize position within a rectangular area
@@ -163,13 +166,6 @@ public class Simulation : MonoBehaviour
             particle = Instantiate(particlePrefab);
         }
 
-        TrailRenderer trailRenderer = particle.AddComponent<TrailRenderer>();
-        trailRenderer.startWidth = 0.01f;
-        trailRenderer.endWidth = 0.001f;
-        trailRenderer.time = 4f;
-        trailRenderer.startColor = color;
-        trailRenderer.endColor = new Color(color.r, color.g, color.b, 0);
-        trailRenderer.material = Resources.Load<Material>("OrbitLine");
         particle.transform.localScale = size;
 
         if (x != null && y != null && z != null)
@@ -312,15 +308,16 @@ public class Simulation : MonoBehaviour
             Camera.main.transform.LookAt(gameObject.transform);
         }
 
-        _deltaTime = Time.deltaTime / 10;
+        _deltaTime = Time.deltaTime / 20;
 
         if (runSimulation)
         {
-            if(particles.Count > 0)
-            {
-                CreateOctree();
-            }
-            SimulateBarnesHut();
+            // if(particles.Count > 0)
+            // {
+            //     CreateOctree();
+            // }
+            // SimulateBarnesHut();
+            SimulateGPU();
             yearPassed += 1;
         }
         else
@@ -468,8 +465,6 @@ public class Simulation : MonoBehaviour
         Stopwatch stopwatch = new();
         try
         {
-            TrailRenderer trailRenderer;
-
             ParallelOptions parallelOptions = new()
             {
                 MaxDegreeOfParallelism = SystemInfo.processorCount
@@ -489,15 +484,6 @@ public class Simulation : MonoBehaviour
             {
                 ParticleEntity particle = particles[i];
                 particle.SetPosition(particle.position + particle.velocity * _deltaTime);
-                // Cache components
-                trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
-
-                // Aggiorna lo stato del TrailRenderer in base alla variabile 'showOrbitLines'
-                if (trailRenderer != null && trailRenderer.emitting != showOrbitLines)
-                {
-                    trailRenderer.emitting = showOrbitLines;
-                }
-
                 // Update the color of the particle based on its properties only when a property is changed
                 UpdateParticleColor(particle, propertyChanged);
             }
@@ -508,6 +494,42 @@ public class Simulation : MonoBehaviour
             Debug.Log(e);
             throw;
         }
+    }
+
+    public struct ParticleGPU
+    {
+        public Vector3 position;
+        public Vector3 velocity;
+        public float mass;
+    }
+
+    void SimulateGPU()
+    {
+        int kernelHandle = computeShader.FindKernel("NBodySimulation");
+        particleBuffer = new ComputeBuffer(particles.Count, Marshal.SizeOf(typeof(ParticleGPU)));
+        particlesGPU = particles.Select(p => new ParticleGPU
+        {
+            position = p.position,
+            velocity = p.velocity,
+            mass = p.mass
+        }).ToArray();
+
+        particleBuffer.SetData(particlesGPU);
+
+        computeShader.SetBuffer(kernelHandle, "particles", particleBuffer);
+        computeShader.SetInt("particlesCount", particles.Count);
+        computeShader.SetFloat("deltaTime", _deltaTime);
+        computeShader.Dispatch(kernelHandle, particles.Count / 256, 1, 1);
+        particleBuffer.GetData(particlesGPU);
+        particleBuffer.Release();
+
+        for (int i = 0; i < particlesGPU.Length; i++)
+        {
+            particles[i].position = particlesGPU[i].position;
+            particles[i].velocity = particlesGPU[i].velocity;
+            particles[i].SetPosition(particlesGPU[i].position);
+        }
+        UpdatePerformanceMetrics();
     }
 
     private void UpdateParticleColor(ParticleEntity particle, bool hasChanged)
@@ -623,6 +645,7 @@ public class Simulation : MonoBehaviour
         currentPosition.z += zPositionConstant;
         Scene currentScene = SceneManager.GetActiveScene();
         CreateCluster(currentScene, currentPosition, count);
+        particlesGPU = new ParticleGPU[particles.Count];
         simulationMode = SimulationMode.Random;
         galaxyModePanel.SetActive(false);
         bigBangModePanel.SetActive(false);
