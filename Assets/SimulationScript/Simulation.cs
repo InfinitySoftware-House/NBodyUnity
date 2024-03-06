@@ -11,7 +11,7 @@ using Random = UnityEngine.Random;
 using System;
 using System.Diagnostics;
 using Debug = UnityEngine.Debug;
-using System.Runtime.InteropServices;
+using static Utility;
 
 public class Simulation : MonoBehaviour
 {
@@ -40,13 +40,16 @@ public class Simulation : MonoBehaviour
     public TMP_Text showVelocityColorText;
     public OctreeNode octree { get; private set; }
     private bool runSimulation = false;
-    private bool isGalaxy = false;
     private bool showMass = false;
     public bool isMainMenu = false;
     public bool showRedshift;
     private bool startCameraRotation;
     private bool showHUD = true;
     public GameObject galaxyModePanel;
+    public GameObject bigBangModePanel;
+    bool propertyChanged = false;
+    private SimulationModeNBody simulationMode = SimulationModeNBody.Random;
+    public ComputeShader computeShader;
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
@@ -57,11 +60,15 @@ public class Simulation : MonoBehaviour
         {
             double roll = random.NextDouble() * 100;
             Star star = Utility.GenerateStars(roll);
-            Vector3 newPosition;
-            if(isGalaxy){
-                float innerRadius = 10f; // Inner radius of the ring
-                float outerRadius = 100f; // Outer radius of the ring
-                float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
+            Vector3 newPosition = Vector3.zero;
+            Vector3 velocity = Vector3.zero;
+
+            switch(simulationMode)
+            {
+                case SimulationModeNBody.Galaxy:
+                    float innerRadius = 10f; // Inner radius of the ring
+                    float outerRadius = 100f; // Outer radius of the ring
+                    float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
 
                     // Randomize radius within the ring bounds
                     float radius = Random.Range(innerRadius, outerRadius);
@@ -75,9 +82,9 @@ public class Simulation : MonoBehaviour
                     direction.z = 10;
                     velocity = Vector3.Cross(direction, Vector3.forward);
                 break;
-                case SimulationMode.Random:
+                case SimulationModeNBody.Random:
                     // Randomize position within a rectangular area
-                    float multiplier = 20; // Multiplier for the rectangular area
+                    float multiplier = Mathf.Max(20, count / 1000); // Multiplier to increase the rectangular area
                     float minX = position.x - multiplier; // Minimum x coordinate of the rectangular area
                     float maxX = position.x + multiplier; // Maximum x coordinate of the rectangular area
                     float minY = position.y - multiplier; // Minimum y coordinate of the rectangular area
@@ -85,23 +92,18 @@ public class Simulation : MonoBehaviour
                     float minZ = position.z - multiplier; // Minimum z coordinate of the rectangular area
                     float maxZ = position.z + multiplier; // Maximum z coordinate of the rectangular area
 
-                float x = Random.Range(minX, maxX);
-                float y = Random.Range(minY, maxY);
-                float z = Random.Range(minZ, maxZ);
-                newPosition = new Vector3(x, y, z);
-            }
-
-            Vector3 velocity = Vector3.zero;
-            if (isGalaxy){
-                // make the stars rotate around the center
-                Vector3 direction = massCenter - newPosition;
-                direction.z = 10;
-                velocity = Vector3.Cross(direction, Vector3.forward);
-            } else {
-                // Randomize velocity
-                velocity.x = Random.Range(-_starVelocity, _starVelocity);
-                velocity.y = Random.Range(-_starVelocity, _starVelocity);
-                velocity.z = Random.Range(-_starVelocity, _starVelocity);
+                    x = Random.Range(minX, maxX);
+                    y = Random.Range(minY, maxY);
+                    z = Random.Range(minZ, maxZ);
+                    newPosition = new Vector3(x, y, z);
+                    // Randomize velocity
+                    velocity.x = Random.Range(-_starVelocity, _starVelocity);
+                    velocity.y = Random.Range(-_starVelocity, _starVelocity);
+                    velocity.z = Random.Range(-_starVelocity, _starVelocity);
+                break;
+                case SimulationModeNBody.BigBang:
+                    newPosition = position + Random.insideUnitSphere * 10;
+                break;
             }
             particles.Add(AddParticle(star, currentScene, newPosition, velocity));
         }
@@ -109,8 +111,12 @@ public class Simulation : MonoBehaviour
 
     private int GetUniverseSize()
     {
+        ParallelOptions parallelOptions = new()
+        {
+            MaxDegreeOfParallelism = SystemInfo.processorCount
+        };
         int universeSize = 0;
-        Parallel.ForEach(particles, particle =>
+        Parallel.ForEach(particles, parallelOptions, particle =>
         {
             float distance = Vector3.Distance(particle.position, Vector3.zero);
             if (distance > universeSize)
@@ -123,15 +129,17 @@ public class Simulation : MonoBehaviour
 
     private void CreateOctree()
     {
+        Stopwatch stopwatch = new Stopwatch();
+        stopwatch.Start();
         Vector3 massCenterForSim = GetMassCenter();
         int universeSize = GetUniverseSize();
         octree = new OctreeNode(massCenterForSim, universeSize);
-
-        // Add all particles to the octree
-        foreach (var particle in particles)
+        foreach (ParticleEntity particle in particles)
         {
             octree.AddParticle(particle);
         }
+        stopwatch.Stop();
+        Debug.Log("Octree creation time: " + stopwatch.ElapsedMilliseconds + "ms");
     }
 
     private Vector3 GetMassCenter()
@@ -156,13 +164,13 @@ public class Simulation : MonoBehaviour
             particle = Instantiate(particlePrefab);
         }
 
-        // TrailRenderer trailRenderer = particle.AddComponent<TrailRenderer>();
-        // trailRenderer.startWidth = 0.01f;
-        // trailRenderer.endWidth = 0.001f;
-        // trailRenderer.time = 4f;
-        // trailRenderer.startColor = color;
-        // trailRenderer.endColor = new Color(color.r, color.g, color.b, 0);
-        // trailRenderer.material = Resources.Load<Material>("OrbitLine");
+        TrailRenderer trailRenderer = particle.AddComponent<TrailRenderer>();
+        trailRenderer.startWidth = 0.01f;
+        trailRenderer.endWidth = 0.001f;
+        trailRenderer.time = 4f;
+        trailRenderer.startColor = color;
+        trailRenderer.endColor = new Color(color.r, color.g, color.b, 0);
+        trailRenderer.material = Resources.Load<Material>("OrbitLine");
         particle.transform.localScale = size;
 
         if (x != null && y != null && z != null)
@@ -272,7 +280,7 @@ public class Simulation : MonoBehaviour
 
             if (Physics.Raycast(ray, out hit))
             {
-                ParticleEntity selectedParticle = particles.FirstOrDefault(p => p.name == hit.collider.gameObject.name);
+                ParticleEntity selectedParticle = particles.FirstOrDefault(p => p.particleObject == hit.collider.gameObject);
                 if (selectedParticle != null)
                 {
                     ParticleEntity particle = selectedParticle;
@@ -300,20 +308,19 @@ public class Simulation : MonoBehaviour
             ObjectInfoModel objectInfoModel = GetObjectInfoModel(lockedParticle);
             objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
             // Call the coroutine to animate the LookAt function
-            GameObject gameObject = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(g => g.name == lockedParticle.name);
+            GameObject gameObject = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(g => g == lockedParticle.particleObject);
             Camera.main.transform.LookAt(gameObject.transform);
         }
 
-        _deltaTime = Time.deltaTime / 20;
+        _deltaTime = Time.deltaTime / 10;
 
         if (runSimulation)
         {
-            // if(particles.Count > 0)
-            // {
-            //     CreateOctree();
-            // }
-            // SimulateBarnesHut();
-            SimulateGPUBruteForce();
+            if(particles.Count > 0)
+            {
+                CreateOctree();
+            }
+            SimulateBarnesHut();
             yearPassed += 1;
         }
         else
@@ -327,6 +334,7 @@ public class Simulation : MonoBehaviour
         {
             showOrbitLines = !showOrbitLines;
             showOrbitLinesText.color = showOrbitLines ? Color.green : Color.white;
+            propertyChanged = true;
         }
 
         if (Input.GetKeyDown(KeyCode.Period))
@@ -342,6 +350,7 @@ public class Simulation : MonoBehaviour
             // newStarVelocityText.text = "v " + _starVelocity.ToString();
         }
 
+        // Reset the simulation
         if (Input.GetKeyDown(KeyCode.R))
         {
             // reset the scene
@@ -361,36 +370,35 @@ public class Simulation : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.B))
         {
             showBloom = !showBloom;
-            foreach (ParticleEntity particle in particles)
-            {
-                if (!showBloom)
-                {
-                    particle.particleObject.GetComponent<Renderer>().material.DisableKeyword("_EMISSION");
-                    particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", Color.black);
-                }
-                else
-                {
-                    particle.particleObject.GetComponent<Renderer>().material.EnableKeyword("_EMISSION");
-                    particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", particle.color);
-                }
-            }
             showBloomText.color = showBloom ? Color.green : Color.white;
+            propertyChanged = true;
+        }
+
+        // Big Bang mode
+        if (Input.GetKeyDown(KeyCode.N))
+        {
+            if(simulationMode == SimulationModeNBody.BigBang)
+            {
+                simulationMode = SimulationModeNBody.Random;
+            }
+            else
+            {
+                simulationMode = SimulationModeNBody.BigBang;
+            }
+            galaxyModePanel.SetActive(simulationMode == SimulationModeNBody.Galaxy);
+            bigBangModePanel.SetActive(simulationMode == SimulationModeNBody.BigBang);
         }
 
         if (Input.GetKeyDown(KeyCode.K))
         {
             showKineticEnergy = !showKineticEnergy;
             showKineticEnergyText.color = showKineticEnergy ? Color.green : Color.white;
+            propertyChanged = true;
         }
 
         if (Input.GetKeyDown(KeyCode.L))
         {
             showHUD = !showHUD;
-            // if (!showHUD)
-            //     StartCoroutine(Utility.FadeOutCanvas(hud));
-            // else
-            //     StartCoroutine(Utility.FadeInCanvas(hud));
-
             hud.SetActive(!hud.activeSelf);
         }
 
@@ -398,16 +406,26 @@ public class Simulation : MonoBehaviour
         {
             showVelocityColor = !showVelocityColor;
             showVelocityColorText.color = showVelocityColor ? Color.green : Color.white;
+            propertyChanged = true;
         }
 
         if(Input.GetKeyDown(KeyCode.M))
         {
             showMass = !showMass;
+            propertyChanged = true;
         }
 
         if(Input.GetKeyDown(KeyCode.G)){
-            isGalaxy = !isGalaxy;
-            galaxyModePanel.SetActive(isGalaxy);
+            if(simulationMode == SimulationModeNBody.Galaxy)
+            {
+                simulationMode = SimulationModeNBody.Random;
+            }
+            else
+            {
+                simulationMode = SimulationModeNBody.Galaxy;
+            }
+            galaxyModePanel.SetActive(simulationMode == SimulationModeNBody.Galaxy);
+            bigBangModePanel.SetActive(simulationMode == SimulationModeNBody.BigBang);
         }
 
         // Garbage collect every 1000 iterations
@@ -426,6 +444,13 @@ public class Simulation : MonoBehaviour
             Vector3 universeCenter = GetMassCenter();
             RotateTheCameraAround(universeCenter, 14);
         }   
+    
+        // keep camera looking at the center of the universe
+        // if (particles.Count > 0)
+        // {
+        //     Vector3 universeCenter = GetMassCenter();
+        //     Camera.main.transform.LookAt(universeCenter);
+        // }
     }
 
     private void RotateTheCameraAround(Vector3 position, float speed)
@@ -437,84 +462,46 @@ public class Simulation : MonoBehaviour
         return 0.5f * particle.mass * particle.velocity.sqrMagnitude;
     }
 
-    private Color GetMassColor(float mass)
-    {
-        return Color.Lerp(Color.blue, Color.red, mass / 1000);
-    }
-
     // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
-    private void SimulateBarnesHut()
+    void SimulateBarnesHut()
     {
+        Stopwatch stopwatch = new();
         try
         {
             TrailRenderer trailRenderer;
-            Renderer particleRenderer;
 
-            ParallelOptions parallelOptions = new ParallelOptions
+            ParallelOptions parallelOptions = new()
             {
                 MaxDegreeOfParallelism = SystemInfo.processorCount
             };
-
+            stopwatch.Start();
             Parallel.ForEach(particles, parallelOptions, particle =>
             {
-                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 0.5f);
+                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.5f);
                 particle.velocity += particle.acceleration * _deltaTime;
                 particle.acceleration = Vector3.zero;
             });
+
+            stopwatch.Stop();
+            Debug.Log("Barnes-Hut simulation time: " + stopwatch.ElapsedMilliseconds + "ms");
 
             for (int i = 0; i < particles.Count; i++)
             {
                 ParticleEntity particle = particles[i];
                 particle.SetPosition(particle.position + particle.velocity * _deltaTime);
-
                 // Cache components
                 trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
-                particleRenderer = particle.particleObject.GetComponent<Renderer>();
 
                 // Aggiorna lo stato del TrailRenderer in base alla variabile 'showOrbitLines'
-                if (trailRenderer != null)
+                if (trailRenderer != null && trailRenderer.emitting != showOrbitLines)
                 {
                     trailRenderer.emitting = showOrbitLines;
                 }
 
-                // Aggiorna il colore della particella in base alle sue proprietà
-                if (particleRenderer != null)
-                {
-                    Color particleColor;
-                    if (showKineticEnergy)
-                    {
-                        particle.kineticEnergy = CalculateKineticEnergy(particle);
-                        particleColor = GetKineticEnergyColor(particle.kineticEnergy);
-                        if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                            particleRenderer.material.DisableKeyword("_EMISSION");
-                    }
-                    else if (showVelocityColor)
-                    {
-                        particleColor = GetVelocityColor(particle.velocity);
-                        if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                            particleRenderer.material.DisableKeyword("_EMISSION");
-                    }
-                    else if (showRedshift)
-                    {
-                        particleColor = Color.Lerp(Color.red, Color.blue, Utility.CalculateRedshift(particle.position.magnitude, particle.velocity.magnitude));
-                    }
-                    else
-                    {
-                        particleColor = particle.color;
-                        if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-                            particleRenderer.material.EnableKeyword("_EMISSION");
-                    }
-
-                    particleRenderer.material.color = particleColor;
-                }
+                // Update the color of the particle based on its properties only when a property is changed
+                UpdateParticleColor(particle, propertyChanged);
             }
-
-            if (Time.time > nextUpdate)
-            {
-                nextUpdate = Time.time + 1;
-                iterationsPerSec = 1 / Time.deltaTime;
-                iterationsPerSecText.text = iterationsPerSec.ToString("F0") + "it/s";
-            }
+            UpdatePerformanceMetrics();
         }
         catch (Exception e)
         {
@@ -523,103 +510,53 @@ public class Simulation : MonoBehaviour
         }
     }
 
-    // // Simulate gravity O(n^2) complexity
-    // private void SimulateGravity()
-    // {
-    //     Parallel.For(0, particles.Count, i =>
-    //     {
-    //         try
-    //         {
-    //             if (i >= particles.Count) return; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-    //             ParticleEntity currentEntity = particles[i];
-    //             int startFrom = particles.Count < 3 ? 0 : i + 1;
-    //             for (int j = startFrom; j < particles.Count; j++) // Inizia da j = i + 1 per evitare calcoli duplicati e autointerazioni
-    //             {
-    //                 if (j == i) continue; // Evita calcoli duplicati e autointerazioni
-    //                 if (j >= particles.Count) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-    //                 if (i >= particles.Count) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-    //                 ParticleEntity nextEntity = particles[j];
-    //                 if (nextEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-    //                 if (currentEntity == null) continue; // Evita l'indice fuori dai limiti (in caso di collisione e fusione di particelle
-    //                 Vector3 distanceVector = nextEntity.position - currentEntity.position;
-    //                 float distance = distanceVector.magnitude;
-    //                 Vector3 forceDirection = distanceVector.normalized;
+    private void UpdateParticleColor(ParticleEntity particle, bool hasChanged)
+    {
+        Renderer particleRenderer = particle.particleObject.GetComponent<Renderer>();
+        if(particleRenderer == null || !hasChanged)
+        {
+            return;
+        }
+        if (showKineticEnergy)
+        {
+            particle.kineticEnergy = CalculateKineticEnergy(particle);
+            particleRenderer.material.color = GetKineticEnergyColor(particle.kineticEnergy);
+            if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+                particleRenderer.material.DisableKeyword("_EMISSION");
+        }
+        else if (showVelocityColor)
+        {
+            particleRenderer.material.color = GetVelocityColor(particle.velocity);
+            if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+                particleRenderer.material.DisableKeyword("_EMISSION");
+        }
+        else if (!showBloom)
+        {
+            particle.particleObject.GetComponent<Renderer>().material.DisableKeyword("_EMISSION");
+            particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", Color.black);
+        }
+        else if (showBloom)
+        {
+            particle.particleObject.GetComponent<Renderer>().material.EnableKeyword("_EMISSION");
+            particle.particleObject.GetComponent<Renderer>().material.SetColor("_EmissionColor", particle.color);
+        }
+        else
+        {
+            particleRenderer.material.color = Utility.GetStarColor(particle.temperature);
+            if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
+                particleRenderer.material.EnableKeyword("_EMISSION");
+        }
+    }
 
-    //                 if (!CheckCollision(currentEntity, nextEntity))
-    //                 {
-    //                     float forceMagnitude = Utility.G * (currentEntity.mass * nextEntity.mass) / (distance * distance);
-    //                     Vector3 force = forceDirection * forceMagnitude;
-
-    //                     currentEntity.acceleration += force / currentEntity.mass;
-    //                     nextEntity.acceleration -= force / nextEntity.mass;
-    //                 }
-    //                 else if (distance == 0)
-    //                 {
-    //                     // MergeParticle(currentEntity, nextEntity);
-    //                     continue;
-    //                 }
-    //             }
-    //         }
-    //         catch (System.Exception e)
-    //         {
-    //             Debug.Log(e);
-    //         }
-    //     });
-
-    //     Parallel.ForEach(particles, particle =>
-    //     {
-    //         if (particle == null) return;
-    //         particle.velocity += particle.acceleration * _deltaTime;
-
-    //         particle.SetPosition(particle.position + particle.velocity * _deltaTime);
-
-    //         particle.acceleration = Vector3.zero;
-
-    //         UnityMainThreadDispatcher.Instance().Enqueue(() =>
-    //         {
-    //             TrailRenderer trailRenderer = particle.particleObject.GetComponent<TrailRenderer>();
-    //             trailRenderer.emitting = showOrbitLines;
-    //             Renderer particleRenderer = particle.particleObject.GetComponent<Renderer>();
-
-    //             // Aggiorna lo stato del TrailRenderer in base alla variabile 'showOrbitLines'
-    //             if (trailRenderer != null)
-    //             {
-    //                 trailRenderer.emitting = showOrbitLines;
-    //             }
-
-    //             // Aggiorna il colore della particella in base alle sue proprietà
-    //             if (particleRenderer != null)
-    //             {
-    //                 if (showKineticEnergy)
-    //                 {
-    //                     particle.kineticEnergy = CalculateKineticEnergy(particle);
-    //                     particleRenderer.material.color = GetKineticEnergyColor(particle.kineticEnergy);
-    //                     if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-    //                         particleRenderer.material.DisableKeyword("_EMISSION");
-    //                 }
-    //                 else if (showVelocityColor)
-    //                 {
-    //                     particleRenderer.material.color = GetVelocityColor(particle.velocity);
-    //                     if (particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-    //                         particleRenderer.material.DisableKeyword("_EMISSION");
-    //                 }
-    //                 else
-    //                 {
-    //                     particleRenderer.material.color = Utility.GetStarColor(particle.temperature);
-    //                     if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-    //                         particleRenderer.material.EnableKeyword("_EMISSION");
-    //                 }
-    //             }
-    //         });
-    //     });
-
-    //     if (Time.time > nextUpdate)
-    //     {
-    //         nextUpdate = Time.time + 1;
-    //         iterationsPerSec = 1 / Time.deltaTime;
-    //         iterationsPerSecText.text = iterationsPerSec.ToString("F0") + "it/s";
-    //     }
-    // }
+    void UpdatePerformanceMetrics()
+    {
+        if (Time.time > nextUpdate)
+        {
+            nextUpdate = Time.time + 1;
+            iterationsPerSec = 1 / Time.deltaTime;
+            iterationsPerSecText.text = iterationsPerSec.ToString("F0") + "it/s";
+        }
+    }
 
     private Color GetKineticEnergyColor(float kineticEnergy)
     {
@@ -686,47 +623,8 @@ public class Simulation : MonoBehaviour
         currentPosition.z += zPositionConstant;
         Scene currentScene = SceneManager.GetActiveScene();
         CreateCluster(currentScene, currentPosition, count);
-        simulationMode = SimulationMode.Random;
+        simulationMode = SimulationModeNBody.Random;
         galaxyModePanel.SetActive(false);
         bigBangModePanel.SetActive(false);
-    }
-
-    public struct Particle
-    {
-        public Vector3 position;
-        public Vector3 velocity;
-        public float mass;
-    }
-
-    void SimulateGPUBruteForce()
-    {
-        ComputeBuffer particleBuffer = new(particles.Count, Marshal.SizeOf(typeof(Particle)));
-        Particle[] particleData = new Particle[particles.Count];
-        particleData = particles.Select(p => new Particle
-        {
-            position = p.position,
-            mass = p.mass,
-            velocity = p.velocity
-        }).ToArray();
-
-        particleBuffer.SetData(particleData);
-
-        int kernel = computeShader.FindKernel("NBodySimulation");
-        computeShader.SetFloat("deltaTime", _deltaTime);
-        computeShader.SetInt("particlesCount", particles.Count);
-        computeShader.SetBuffer(kernel, "particles", particleBuffer);
-
-        computeShader.Dispatch(kernel, particleData.Length / 64, 1, 1);
-
-        particleBuffer.GetData(particleData);
-        particleBuffer.Release();
-
-        for (int i = 0; i < particles.Count; i++)
-        {
-            particles[i].velocity = particleData[i].velocity;
-            particles[i].acceleration = Vector3.zero;  
-            particles[i].SetPosition(particleData[i].position);
-        }
-        UpdatePerformanceMetrics();
     }
 }

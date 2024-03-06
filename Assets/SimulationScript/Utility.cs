@@ -9,6 +9,13 @@ public class Utility
     public const float C = 299792458f; // Speed of light in m/s
     private static readonly System.Random random = new();
 
+    public enum SimulationModeNBody
+    {
+        Galaxy,
+        BigBang,
+        Random
+    }
+
     public static Star GenerateStars(double roll)
     {
         Star star = new Star();
