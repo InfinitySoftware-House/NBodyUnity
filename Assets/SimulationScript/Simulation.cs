@@ -9,6 +9,9 @@ using Unity.VisualScripting;
 using System.Linq;
 using Random = UnityEngine.Random;
 using System;
+using System.Diagnostics;
+using Debug = UnityEngine.Debug;
+using System.Runtime.InteropServices;
 
 public class Simulation : MonoBehaviour
 {
@@ -60,22 +63,27 @@ public class Simulation : MonoBehaviour
                 float outerRadius = 100f; // Outer radius of the ring
                 float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
 
-                // Randomize radius within the ring bounds
-                float radius = Random.Range(innerRadius, outerRadius);
-                // Calculate x, y, z coordinates for a ring-shaped galaxy
-                float x = position.x + radius * Mathf.Cos(angle);
-                float y = position.y + radius * Mathf.Sin(angle);
-                float z = position.z; // Assuming you want the ring to be horizontal, keep z constant
-                newPosition = new Vector3(x, y, z);
-            }else{
-                // Randomize position within a rectangular area
-                float multiplier = Mathf.Max(20, count / 1000); // Multiplier to increase the rectangular area
-                float minX = position.x - multiplier; // Minimum x coordinate of the rectangular area
-                float maxX = position.x + multiplier; // Maximum x coordinate of the rectangular area
-                float minY = position.y - multiplier; // Minimum y coordinate of the rectangular area
-                float maxY = position.y + multiplier; // Maximum y coordinate of the rectangular area
-                float minZ = position.z - multiplier; // Minimum z coordinate of the rectangular area
-                float maxZ = position.z + multiplier; // Maximum z coordinate of the rectangular area
+                    // Randomize radius within the ring bounds
+                    float radius = Random.Range(innerRadius, outerRadius);
+                    // Calculate x, y, z coordinates for a ring-shaped galaxy
+                    float x = position.x + radius * Mathf.Cos(angle);
+                    float y = position.y + radius * Mathf.Sin(angle);
+                    float z = position.z + Random.Range(-5, 5);
+                    newPosition = new Vector3(x, y, z);
+                    // make the stars rotate around the center
+                    Vector3 direction = massCenter - newPosition;
+                    direction.z = 10;
+                    velocity = Vector3.Cross(direction, Vector3.forward);
+                break;
+                case SimulationMode.Random:
+                    // Randomize position within a rectangular area
+                    float multiplier = 20; // Multiplier for the rectangular area
+                    float minX = position.x - multiplier; // Minimum x coordinate of the rectangular area
+                    float maxX = position.x + multiplier; // Maximum x coordinate of the rectangular area
+                    float minY = position.y - multiplier; // Minimum y coordinate of the rectangular area
+                    float maxY = position.y + multiplier; // Maximum y coordinate of the rectangular area
+                    float minZ = position.z - multiplier; // Minimum z coordinate of the rectangular area
+                    float maxZ = position.z + multiplier; // Maximum z coordinate of the rectangular area
 
                 float x = Random.Range(minX, maxX);
                 float y = Random.Range(minY, maxY);
@@ -148,13 +156,13 @@ public class Simulation : MonoBehaviour
             particle = Instantiate(particlePrefab);
         }
 
-        TrailRenderer trailRenderer = particle.AddComponent<TrailRenderer>();
-        trailRenderer.startWidth = 0.01f;
-        trailRenderer.endWidth = 0.001f;
-        trailRenderer.time = 4f;
-        trailRenderer.startColor = color;
-        trailRenderer.endColor = new Color(color.r, color.g, color.b, 0);
-        trailRenderer.material = Resources.Load<Material>("OrbitLine");
+        // TrailRenderer trailRenderer = particle.AddComponent<TrailRenderer>();
+        // trailRenderer.startWidth = 0.01f;
+        // trailRenderer.endWidth = 0.001f;
+        // trailRenderer.time = 4f;
+        // trailRenderer.startColor = color;
+        // trailRenderer.endColor = new Color(color.r, color.g, color.b, 0);
+        // trailRenderer.material = Resources.Load<Material>("OrbitLine");
         particle.transform.localScale = size;
 
         if (x != null && y != null && z != null)
@@ -300,11 +308,12 @@ public class Simulation : MonoBehaviour
 
         if (runSimulation)
         {
-            if(particles.Count > 0)
-            {
-                CreateOctree();
-            }
-            SimulateBarnesHut();
+            // if(particles.Count > 0)
+            // {
+            //     CreateOctree();
+            // }
+            // SimulateBarnesHut();
+            SimulateGPUBruteForce();
             yearPassed += 1;
         }
         else
@@ -677,7 +686,47 @@ public class Simulation : MonoBehaviour
         currentPosition.z += zPositionConstant;
         Scene currentScene = SceneManager.GetActiveScene();
         CreateCluster(currentScene, currentPosition, count);
-        isGalaxy = false;
-        galaxyModePanel.SetActive(isGalaxy);
+        simulationMode = SimulationMode.Random;
+        galaxyModePanel.SetActive(false);
+        bigBangModePanel.SetActive(false);
+    }
+
+    public struct Particle
+    {
+        public Vector3 position;
+        public Vector3 velocity;
+        public float mass;
+    }
+
+    void SimulateGPUBruteForce()
+    {
+        ComputeBuffer particleBuffer = new(particles.Count, Marshal.SizeOf(typeof(Particle)));
+        Particle[] particleData = new Particle[particles.Count];
+        particleData = particles.Select(p => new Particle
+        {
+            position = p.position,
+            mass = p.mass,
+            velocity = p.velocity
+        }).ToArray();
+
+        particleBuffer.SetData(particleData);
+
+        int kernel = computeShader.FindKernel("NBodySimulation");
+        computeShader.SetFloat("deltaTime", _deltaTime);
+        computeShader.SetInt("particlesCount", particles.Count);
+        computeShader.SetBuffer(kernel, "particles", particleBuffer);
+
+        computeShader.Dispatch(kernel, particleData.Length / 64, 1, 1);
+
+        particleBuffer.GetData(particleData);
+        particleBuffer.Release();
+
+        for (int i = 0; i < particles.Count; i++)
+        {
+            particles[i].velocity = particleData[i].velocity;
+            particles[i].acceleration = Vector3.zero;  
+            particles[i].SetPosition(particleData[i].position);
+        }
+        UpdatePerformanceMetrics();
     }
 }
