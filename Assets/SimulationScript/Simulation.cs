@@ -12,6 +12,9 @@ using System;
 using System.Diagnostics;
 using Debug = UnityEngine.Debug;
 using System.Runtime.InteropServices;
+using Unity.Jobs;
+using UnityEngine.Jobs;
+using Unity.Collections;
 
 public class Simulation : MonoBehaviour
 {
@@ -308,7 +311,7 @@ public class Simulation : MonoBehaviour
             Camera.main.transform.LookAt(gameObject.transform);
         }
 
-        _deltaTime = Time.deltaTime / 20;
+        _deltaTime = Time.deltaTime / 50;
 
         if (runSimulation)
         {
@@ -506,30 +509,64 @@ public class Simulation : MonoBehaviour
     void SimulateGPU()
     {
         int kernelHandle = computeShader.FindKernel("NBodySimulation");
-        particleBuffer = new ComputeBuffer(particles.Count, Marshal.SizeOf(typeof(ParticleGPU)));
-        particlesGPU = particles.Select(p => new ParticleGPU
-        {
-            position = p.position,
-            velocity = p.velocity,
-            mass = p.mass
-        }).ToArray();
+        int particleCount = particles.Count;
 
+        // Calculate the stride size manually
+        int strideSize = sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float);
+
+        // Create the ComputeBuffer with the optimized stride size
+        particleBuffer = new ComputeBuffer(particleCount, strideSize);
+
+        // Create a temporary array to hold the particle data
+        ParticleGPU[] particlesGPU = new ParticleGPU[particleCount];
+
+        for (int i = 0; i < particleCount; i++)
+        {
+            particlesGPU[i] = new ParticleGPU
+            {
+                position = particles[i].position,
+                velocity = particles[i].velocity,
+                mass = particles[i].mass
+            };
+        }
+
+        // Set the particle data in the ComputeBuffer
         particleBuffer.SetData(particlesGPU);
 
+        // Set the ComputeBuffer and other parameters for the compute shader
         computeShader.SetBuffer(kernelHandle, "particles", particleBuffer);
-        computeShader.SetInt("particlesCount", particles.Count);
+        computeShader.SetInt("particlesCount", particleCount);
         computeShader.SetFloat("deltaTime", _deltaTime);
-        computeShader.Dispatch(kernelHandle, particles.Count / 256, 1, 1);
+
+        // Dispatch the compute shader with a smaller thread group size
+        int threadGroupSize = Mathf.CeilToInt((float)particleCount / 256);
+        computeShader.Dispatch(kernelHandle, threadGroupSize, 1, 1);
+
+        // Get the updated particle data from the ComputeBuffer
         particleBuffer.GetData(particlesGPU);
+
+        // Release the ComputeBuffer
         particleBuffer.Release();
 
-        for (int i = 0; i < particlesGPU.Length; i++)
+        // Update the particles with the updated data
+        for (int i = 0; i < particleCount; i++)
         {
-            particles[i].position = particlesGPU[i].position;
             particles[i].velocity = particlesGPU[i].velocity;
+            particles[i].acceleration = Vector3.zero;
             particles[i].SetPosition(particlesGPU[i].position);
         }
+
         UpdatePerformanceMetrics();
+    }
+
+    struct MoveParticleJob : IJobParallelForTransform
+    {
+        public float deltaTime;
+        public NativeArray<Vector3> positions;
+        public void Execute(int index, TransformAccess transform)
+        {
+            transform.position = positions[index];
+        }
     }
 
     private void UpdateParticleColor(ParticleEntity particle, bool hasChanged)

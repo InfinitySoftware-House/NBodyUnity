@@ -18,7 +18,7 @@ float deltaTime; // Time step for simulation
 uint particlesCount;
 
 // The compute shader kernel
-[numthreads(256, 1, 1)] // Adjust the thread group size based on your GPU's capabilities and total particles
+[numthreads(512, 1, 1)] // Adjust the thread group size based on your GPU's capabilities and total particles
 void NBodySimulation(uint3 DTid : SV_DispatchThreadID) {
     uint index = DTid.x;
 
@@ -33,6 +33,10 @@ void NBodySimulation(uint3 DTid : SV_DispatchThreadID) {
 				Particle other = particles[j];
 				float3 dir = other.position - p.position;
 				float distance = length(dir);
+                // Avoid too distant particles
+                if (distance > 100) {
+                    continue;
+                }
 				float forceMagnitude = G * (p.mass * other.mass) / (distance * distance); // Add a small value to avoid division by zero
 				float3 forceDirection = normalize(dir);
 				float3 force = forceDirection * forceMagnitude;
