@@ -159,15 +159,7 @@ public class Simulation : MonoBehaviour
 
     private GameObject CreateParticle(Vector3 size, Color color, float? x = null, float? y = null, float? z = null, bool isBlackHole = false, bool isStellar = true)
     {
-        GameObject particle;
-        if (isBlackHole)
-        {
-            particle = Instantiate(blackHolePrefab);
-        }
-        else
-        {
-            particle = Instantiate(particlePrefab);
-        }
+        GameObject particle = new GameObject();
 
         particle.transform.localScale = size;
 
@@ -180,27 +172,27 @@ public class Simulation : MonoBehaviour
             particle.transform.position = Random.insideUnitSphere * 20;
         }
 
-        Color particleColor = !isBlackHole ? color : Color.black;
-        // Set the color
-        Renderer particleRenderer = particle.GetComponent<Renderer>();
-        if (!isBlackHole && isStellar)
-        {
-            particleRenderer.material.color = particleColor; // Apply color based on mass
-            particleRenderer.material.EnableKeyword("_EMISSION"); // Enable emission
-            particleRenderer.material.SetColor("_EmissionColor", particleColor); // Set emission color
-        }
-        else if (!isStellar)
-        {
-            particleRenderer.material.DisableKeyword("_EMISSION");
-            particleRenderer.material.color = particleColor;
-        }
+        // Color particleColor = !isBlackHole ? color : Color.black;
+        // // Set the color
+        // Renderer particleRenderer = particle.GetComponent<Renderer>();
+        // if (!isBlackHole && isStellar)
+        // {
+        //     particleRenderer.material.color = particleColor; // Apply color based on mass
+        //     particleRenderer.material.EnableKeyword("_EMISSION"); // Enable emission
+        //     particleRenderer.material.SetColor("_EmissionColor", particleColor); // Set emission color
+        // }
+        // else if (!isStellar)
+        // {
+        //     particleRenderer.material.DisableKeyword("_EMISSION");
+        //     particleRenderer.material.color = particleColor;
+        // }
 
-        if (isBlackHole)
-        {
-            particleRenderer.material.color = particleColor;
-            particleRenderer.material.EnableKeyword("_EMISSION");
-            particleRenderer.material.SetColor("_EmissionColor", particleColor);
-        }
+        // if (isBlackHole)
+        // {
+        //     particleRenderer.material.color = particleColor;
+        //     particleRenderer.material.EnableKeyword("_EMISSION");
+        //     particleRenderer.material.SetColor("_EmissionColor", particleColor);
+        // }
 
         return particle;
     }
@@ -217,7 +209,7 @@ public class Simulation : MonoBehaviour
         bool isBlackHole = mass >= 1000;
         GameObject particleObject = CreateParticle(_particleSize, star.color, position?.x, position?.y, position?.z, isBlackHole, !isBlackHole);
 
-        SceneManager.MoveGameObjectToScene(particleObject, currentScene);
+        // SceneManager.MoveGameObjectToScene(particleObject, currentScene);
         return new(_particleSize, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject, star.color);
     }
 
@@ -326,6 +318,12 @@ public class Simulation : MonoBehaviour
         else
         {
             iterationsPerSecText.text = "Simulation paused";
+        }
+
+        int particleCount = particles.Count;
+        if(particleCount > 0)
+        {
+            UpdateParticlesPositions(particleCount);
         }
 
         particlesCountText.text = "Objects: " + particles.Count.ToString();
@@ -505,9 +503,22 @@ public class Simulation : MonoBehaviour
         public Vector3 velocity;
         public float mass;
     }
+    
+    void RemoveGameObjects()
+    {
+        foreach (ParticleEntity particle in particles)
+        {
+            if (particle != null && particle.particleObject != null && !particle.particleObject.IsDestroyed())
+                Destroy(particle.particleObject);
+        }
+    }
 
     void SimulateGPU()
     {
+        ParallelOptions parallelOptions = new()
+        {
+            MaxDegreeOfParallelism = SystemInfo.processorCount
+        };
         int kernelHandle = computeShader.FindKernel("NBodySimulation");
         int particleCount = particles.Count;
 
@@ -518,9 +529,9 @@ public class Simulation : MonoBehaviour
         particleBuffer = new ComputeBuffer(particleCount, strideSize);
 
         // Create a temporary array to hold the particle data
-        ParticleGPU[] particlesGPU = new ParticleGPU[particleCount];
+        particlesGPU = new ParticleGPU[particleCount];
 
-        for (int i = 0; i < particleCount; i++)
+        Parallel.For(0, particleCount, parallelOptions, i =>
         {
             particlesGPU[i] = new ParticleGPU
             {
@@ -528,7 +539,7 @@ public class Simulation : MonoBehaviour
                 velocity = particles[i].velocity,
                 mass = particles[i].mass
             };
-        }
+        });
 
         // Set the particle data in the ComputeBuffer
         particleBuffer.SetData(particlesGPU);
@@ -539,7 +550,7 @@ public class Simulation : MonoBehaviour
         computeShader.SetFloat("deltaTime", _deltaTime);
 
         // Dispatch the compute shader with a smaller thread group size
-        int threadGroupSize = Mathf.CeilToInt((float)particleCount / 256);
+        int threadGroupSize = Mathf.CeilToInt((float)particleCount / 64);
         computeShader.Dispatch(kernelHandle, threadGroupSize, 1, 1);
 
         // Get the updated particle data from the ComputeBuffer
@@ -549,24 +560,31 @@ public class Simulation : MonoBehaviour
         particleBuffer.Release();
 
         // Update the particles with the updated data
-        for (int i = 0; i < particleCount; i++)
+        Parallel.For(0, particleCount, parallelOptions, i =>
         {
             particles[i].velocity = particlesGPU[i].velocity;
             particles[i].acceleration = Vector3.zero;
-            particles[i].SetPosition(particlesGPU[i].position);
-        }
+            particles[i].position = particlesGPU[i].position;
+        });
 
         UpdatePerformanceMetrics();
     }
 
-    struct MoveParticleJob : IJobParallelForTransform
+    private void UpdateParticlesPositions(int particleCount)
     {
-        public float deltaTime;
-        public NativeArray<Vector3> positions;
-        public void Execute(int index, TransformAccess transform)
+        Matrix4x4[] matrices = new Matrix4x4[particleCount];
+        // Update the particles with the updated data
+        var particleMesh = particlePrefab.GetComponent<MeshFilter>().sharedMesh;
+        var particleMaterial = particlePrefab.GetComponent<MeshRenderer>().sharedMaterial;
+        RenderParams rp = new(particleMaterial){
+            layer = particlePrefab.layer
+        };
+
+        for (int i = 0; i < particleCount; i++)
         {
-            transform.position = positions[index];
+            matrices[i] = Matrix4x4.TRS(particles[i].position, Quaternion.identity, particles[i].size);
         }
+        Graphics.RenderMeshInstanced(rp, particleMesh, 0, matrices, particleCount);
     }
 
     private void UpdateParticleColor(ParticleEntity particle, bool hasChanged)
