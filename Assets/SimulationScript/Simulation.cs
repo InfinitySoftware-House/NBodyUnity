@@ -11,10 +11,7 @@ using Random = UnityEngine.Random;
 using System;
 using System.Diagnostics;
 using Debug = UnityEngine.Debug;
-using System.Runtime.InteropServices;
-using Unity.Jobs;
-using UnityEngine.Jobs;
-using Unity.Collections;
+using UnityEngine.UIElements;
 
 public class Simulation : MonoBehaviour
 {
@@ -36,7 +33,7 @@ public class Simulation : MonoBehaviour
     private bool showKineticEnergy = false;
     private bool showVelocityColor = false;
     public GameObject hud;
-    private Vector3 _particleSize = new Vector3(0.08f, 0.08f, 0.08f);
+    private Vector3 _particleSize = new(0.08f, 0.08f, 0.08f);
     public TMP_Text showBloomText;
     public TMP_Text showOrbitLinesText;
     public TMP_Text showKineticEnergyText;
@@ -55,6 +52,8 @@ public class Simulation : MonoBehaviour
     public ComputeShader computeShader;
     ComputeBuffer particleBuffer;
     ParticleGPU[] particlesGPU;
+    Mesh pointMesh;
+    Material particleMaterial;
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
@@ -226,6 +225,9 @@ public class Simulation : MonoBehaviour
         showOrbitLinesText.color = showOrbitLines ? Color.green : Color.white;
         showKineticEnergyText.color = showKineticEnergy ? Color.green : Color.white;
         showVelocityColorText.color = showVelocityColor ? Color.green : Color.white;
+
+        pointMesh = particlePrefab.GetComponent<MeshFilter>().sharedMesh;
+        particleMaterial = particlePrefab.GetComponent<MeshRenderer>().sharedMaterial;
     }
 
     private ObjectInfoModel GetObjectInfoModel(ParticleEntity particle)
@@ -312,7 +314,10 @@ public class Simulation : MonoBehaviour
             //     CreateOctree();
             // }
             // SimulateBarnesHut();
-            SimulateGPU();
+            if(particlesGPU != null && particlesGPU.Length > 0)
+            {
+                SimulateGPU();
+            }
             yearPassed += 1;
         }
         else
@@ -501,90 +506,53 @@ public class Simulation : MonoBehaviour
     {
         public Vector3 position;
         public Vector3 velocity;
+        public Vector3 force;
         public float mass;
     }
-    
-    void RemoveGameObjects()
+
+    private const int ThreadGroupSize = 256;
+    private const int StrideSize = sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float);
+    private int kernelHandle;
+
+    private void InitializeComputeShader()
     {
-        foreach (ParticleEntity particle in particles)
-        {
-            if (particle != null && particle.particleObject != null && !particle.particleObject.IsDestroyed())
-                Destroy(particle.particleObject);
-        }
+        kernelHandle = computeShader.FindKernel("NBodySimulation");
+        particleBuffer = new ComputeBuffer(particles.Count, StrideSize);
     }
 
     void SimulateGPU()
     {
-        ParallelOptions parallelOptions = new()
-        {
-            MaxDegreeOfParallelism = SystemInfo.processorCount
-        };
-        int kernelHandle = computeShader.FindKernel("NBodySimulation");
-        int particleCount = particles.Count;
-
-        // Calculate the stride size manually
-        int strideSize = sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float);
-
-        // Create the ComputeBuffer with the optimized stride size
-        particleBuffer = new ComputeBuffer(particleCount, strideSize);
-
-        // Create a temporary array to hold the particle data
-        particlesGPU = new ParticleGPU[particleCount];
-
-        Parallel.For(0, particleCount, parallelOptions, i =>
-        {
-            particlesGPU[i] = new ParticleGPU
-            {
-                position = particles[i].position,
-                velocity = particles[i].velocity,
-                mass = particles[i].mass
-            };
-        });
-
-        // Set the particle data in the ComputeBuffer
         particleBuffer.SetData(particlesGPU);
-
-        // Set the ComputeBuffer and other parameters for the compute shader
         computeShader.SetBuffer(kernelHandle, "particles", particleBuffer);
-        computeShader.SetInt("particlesCount", particleCount);
+        computeShader.SetInt("particlesCount", particles.Count);
         computeShader.SetFloat("deltaTime", _deltaTime);
 
-        // Dispatch the compute shader with a smaller thread group size
-        int threadGroupSize = Mathf.CeilToInt((float)particleCount / 64);
-        computeShader.Dispatch(kernelHandle, threadGroupSize, 1, 1);
+        computeShader.Dispatch(kernelHandle, particles.Count / ThreadGroupSize, 1, 1);
 
-        // Get the updated particle data from the ComputeBuffer
         particleBuffer.GetData(particlesGPU);
 
-        // Release the ComputeBuffer
-        particleBuffer.Release();
-
-        // Update the particles with the updated data
-        Parallel.For(0, particleCount, parallelOptions, i =>
-        {
-            particles[i].velocity = particlesGPU[i].velocity;
-            particles[i].acceleration = Vector3.zero;
-            particles[i].position = particlesGPU[i].position;
-        });
-
         UpdatePerformanceMetrics();
+    }
+
+    void CleanupComputeShader()
+    {
+        particleBuffer.Release();
     }
 
     private void UpdateParticlesPositions(int particleCount)
     {
         Matrix4x4[] matrices = new Matrix4x4[particleCount];
         // Update the particles with the updated data
-        var particleMesh = particlePrefab.GetComponent<MeshFilter>().sharedMesh;
-        var particleMaterial = particlePrefab.GetComponent<MeshRenderer>().sharedMaterial;
+        // var particleMesh = particlePrefab.GetComponent<MeshFilter>().sharedMesh;
         RenderParams rp = new(particleMaterial){
             layer = particlePrefab.layer
         };
 
         for (int i = 0; i < particleCount; i++)
         {
-            matrices[i] = Matrix4x4.TRS(particles[i].position, Quaternion.identity, particles[i].size);
+            matrices[i] = Matrix4x4.TRS(particlesGPU[i].position, Quaternion.identity, _particleSize);
         }
-        Graphics.RenderMeshInstanced(rp, particleMesh, 0, matrices, particleCount);
+        Graphics.RenderMeshInstanced(rp, pointMesh, 0, matrices, particleCount);
     }
 
     private void UpdateParticleColor(ParticleEntity particle, bool hasChanged)
@@ -688,21 +656,44 @@ public class Simulation : MonoBehaviour
         {
             if (particle != null && particle.particleObject != null && !particle.particleObject.IsDestroyed())
                 Destroy(particle.particleObject);
-        }
+        }   
+
+        CleanupComputeShader();
 
         particles = null;
     }
 
     public void ClickButtonsAddCluster(int count)
     {
+        int countParticles = (int)Math.Pow(2, count);
         float zPositionConstant = 50;
         Vector3 currentPosition = Camera.main.transform.position;
         currentPosition.z += zPositionConstant;
         Scene currentScene = SceneManager.GetActiveScene();
-        CreateCluster(currentScene, currentPosition, count);
-        particlesGPU = new ParticleGPU[particles.Count];
+        CreateCluster(currentScene, currentPosition, countParticles);
+
+        ParallelOptions parallelOptions = new()
+        {
+            MaxDegreeOfParallelism = SystemInfo.processorCount
+        };
+
+        particlesGPU = new ParticleGPU[countParticles];
+
+        Parallel.ForEach(particles, parallelOptions, (particle, state, i) =>
+        {
+            particlesGPU[i] = new ParticleGPU
+            {
+                position = particle.position,
+                velocity = particle.velocity,
+                mass = particle.mass,
+                force = Vector3.zero
+            };
+        });
+
         simulationMode = SimulationMode.Random;
         galaxyModePanel.SetActive(false);
         bigBangModePanel.SetActive(false);
+
+        InitializeComputeShader();
     }
 }
