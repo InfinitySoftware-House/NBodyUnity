@@ -506,12 +506,11 @@ public class Simulation : MonoBehaviour
     {
         public Vector3 position;
         public Vector3 velocity;
-        public Vector3 force;
         public float mass;
     }
 
     private const int ThreadGroupSize = 256;
-    private const int StrideSize = sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float);
+    private const int StrideSize = sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float);
     private int kernelHandle;
 
     private void InitializeComputeShader()
@@ -685,8 +684,7 @@ public class Simulation : MonoBehaviour
             {
                 position = particle.position,
                 velocity = particle.velocity,
-                mass = particle.mass,
-                force = Vector3.zero
+                mass = particle.mass
             };
         });
 
