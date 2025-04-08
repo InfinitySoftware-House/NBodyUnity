@@ -15,7 +15,6 @@ using Debug = UnityEngine.Debug;
 public class Simulation : MonoBehaviour
 {
     public GameObject particlePrefab;
-    public GameObject blackHolePrefab;
     private List<ParticleEntity> particles = new List<ParticleEntity>();
     private float _deltaTime = 0;
     public TMP_Text particlesCountText;
@@ -40,7 +39,6 @@ public class Simulation : MonoBehaviour
     public OctreeNode octree { get; private set; }
     private bool runSimulation = false;
     private bool showMass = false;
-    public bool isMainMenu = false;
     public bool showRedshift;
     private bool startCameraRotation;
     private bool showHUD = true;
@@ -166,6 +164,10 @@ public class Simulation : MonoBehaviour
             particle.transform.position = new Vector3((float)x, (float)y, (float)z);
         else
             particle.transform.position = Random.insideUnitSphere * 20;
+        
+        // Add a SphereCollider component with a default radius
+        SphereCollider collider = particle.AddComponent<SphereCollider>();
+        collider.radius = 1f;
             
         return particle;
     }
@@ -228,8 +230,7 @@ public class Simulation : MonoBehaviour
         }
         if (Input.GetKeyDown(KeyCode.Mouse0)) {
             Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            RaycastHit hit;
-            if (Physics.Raycast(ray, out hit)) {
+            if (Physics.Raycast(ray, out RaycastHit hit)) {
                 ParticleEntity selectedParticle = particles.FirstOrDefault(p => p.particleObject == hit.collider.gameObject);
                 if (selectedParticle != null) {
                     ObjectInfoModel objectInfoModel = GetObjectInfoModel(selectedParticle);
@@ -358,47 +359,6 @@ public class Simulation : MonoBehaviour
     {
         Camera.main.transform.RotateAround(position, Vector3.up, speed * Time.deltaTime);
     }
-    private float CalculateKineticEnergy(ParticleEntity particle)
-    {
-        return 0.5f * particle.mass * particle.velocity.sqrMagnitude;
-    }
-
-    // Simulate gravity using the Barnes-Hut algorithm (O(n log n) complexity)
-    void SimulateBarnesHut()
-    {
-        Stopwatch stopwatch = new();
-        try
-        {
-            ParallelOptions parallelOptions = new()
-            {
-                MaxDegreeOfParallelism = SystemInfo.processorCount
-            };
-            stopwatch.Start();
-            Parallel.ForEach(particles, parallelOptions, particle =>
-            {
-                particle.acceleration = octree.CalculateForceBarnesHut(particle, octree, 1.5f);
-                particle.velocity += particle.acceleration * _deltaTime;
-                particle.acceleration = Vector3.zero;
-            });
-
-            stopwatch.Stop();
-            Debug.Log("Barnes-Hut simulation time: " + stopwatch.ElapsedMilliseconds + "ms");
-
-            for (int i = 0; i < particles.Count; i++)
-            {
-                ParticleEntity particle = particles[i];
-                particle.SetPosition(particle.position + particle.velocity * _deltaTime);
-                // Update the color of the particle based on its properties only when a property is changed
-                UpdateParticleColor(particle, propertyChanged);
-            }
-            UpdatePerformanceMetrics();
-        }
-        catch (Exception e)
-        {
-            Debug.Log(e);
-            throw;
-        }
-    }
 
     public struct ParticleGPU
     {
@@ -447,7 +407,8 @@ public class Simulation : MonoBehaviour
         {
             matricesCache = new Matrix4x4[particleCount];
         }
-        RenderParams rp = new(particleMaterial){
+        RenderParams rp = new RenderParams(particleMaterial)
+        {
             layer = particlePrefab.layer
         };
 
@@ -460,7 +421,7 @@ public class Simulation : MonoBehaviour
 
     private void UpdateParticleColor(ParticleEntity particle, bool hasChanged)
     {
-        Renderer particleRenderer = particle.particleObject.GetComponent<Renderer>();
+        Renderer particleRenderer = particle.particleObject.GetComponent<MeshRenderer>();
         if (particleRenderer == null)
         {
             return;
