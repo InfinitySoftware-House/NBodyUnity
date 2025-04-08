@@ -23,6 +23,7 @@ Below are the benchmark results for the simulation performance on an NVIDIA 4060
 | 131072              | 5                     |
 | 262144              | 3                     |
 
+
 ### Getting Started
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
@@ -42,6 +43,8 @@ These instructions will get you a copy of the project up and running on your loc
 - Once the project is running, you will see a simulation of particles interacting gravitationally. You can adjust the number of particles and the simulation parameters within Unity's inspector to see how they affect performance and behavior.
 
 ## Contribution
+
+We are currently seeking contributions to enhance this simulation, specifically:
 
 - Optimization: Improve the existing Barnes-Hut algorithm implementation for better performance and accuracy.
 
