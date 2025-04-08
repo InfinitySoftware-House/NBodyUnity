@@ -1,0 +1,38 @@
+#pragma kernel NBodySimulation
+
+struct Particle {
+    float3 position;
+    float3 velocity;
+    float mass;
+};
+
+RWStructuredBuffer<Particle> particles;
+static const float G = 6.67430;
+float deltaTime;
+uint particlesCount;
+
+[numthreads(256, 1, 1)] // Use larger thread groups for better GPU utilization
+void NBodySimulation(uint3 DTid : SV_DispatchThreadID) {
+    uint index = DTid.x;
+
+    if (index < particlesCount) {
+        Particle p = particles[index];
+        float3 totalForce = float3(0, 0, 0);
+
+        for (uint j = 0; j < particlesCount; j++) {
+            if (j != index) {
+                Particle other = particles[j];
+                float3 dir = other.position - p.position;
+                float distanceSq = dot(dir, dir); // Use squared distance to avoid sqrt
+                if (distanceSq > 10000 || distanceSq == 0) continue; // Use squared comparison, avoid division by zero
+                float forceMagnitude = G * p.mass * other.mass / distanceSq;
+                totalForce += dir * (forceMagnitude / sqrt(distanceSq)); // Normalize only when necessary
+            }
+        }
+
+        float3 acceleration = totalForce / p.mass;
+        p.velocity += acceleration * deltaTime;
+        p.position += p.velocity * deltaTime;
+        particles[index] = p;
+    }
+}

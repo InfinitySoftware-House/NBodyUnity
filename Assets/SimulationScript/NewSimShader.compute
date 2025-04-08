@@ -1,0 +1,74 @@
+#pragma kernel BarnesHutKernel
+#pragma kernel UpdateParticlesKernel
+
+#define MAX_PARTICLES 100000
+#define MAX_NODES 100000
+
+struct Particle {
+    float3 position;
+    float3 velocity;
+    float mass;
+};
+
+struct Node {
+    float3 centerOfMass;
+    float totalMass;
+    float3 minBounds;
+    float3 maxBounds;
+    int firstChild;
+    int nextNode;
+};
+
+RWStructuredBuffer<Particle> particlesBuffer;
+RWStructuredBuffer<Node> nodesBuffer;
+
+float deltaTime;
+float gravitationalConstant;
+float softening;
+float3 spaceOrigin;
+float3 spaceSize;
+
+float3 calculateCenterOfMass(float3 pos1, float mass1, float3 pos2, float mass2) {
+    float totalMass = mass1 + mass2;
+    return (pos1 * mass1 + pos2 * mass2) / totalMass;
+}
+
+bool shouldTraverseNode(float3 particlePos, Node node) {
+    float3 centerToParticle = particlePos - node.centerOfMass;
+    float distanceToCenter = length(centerToParticle);
+    float maxDistance = max(node.maxBounds.x - node.minBounds.x, max(node.maxBounds.y - node.minBounds.y, node.maxBounds.z - node.minBounds.z));
+    return (distanceToCenter * distanceToCenter) > (maxDistance * maxDistance) * softening;
+}
+
+[numthreads(256, 1, 1)]
+void BarnesHutKernel(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= MAX_PARTICLES) return;
+
+    Particle particle = particlesBuffer[id.x];
+    float3 force = 0;
+
+    int currentNode = 0;
+    while (currentNode != -1) {
+        Node node = nodesBuffer[currentNode];
+
+        if (shouldTraverseNode(particle.position, node)) {
+            float3 distanceToNode = node.centerOfMass - particle.position;
+            float distanceSqr = dot(distanceToNode, distanceToNode) + softening;
+            force += (gravitationalConstant * particle.mass * node.totalMass / distanceSqr) * (distanceToNode / sqrt(distanceSqr));
+            currentNode = -1;
+        } else {
+            currentNode = node.firstChild;
+        }
+    }
+
+    particlesBuffer[id.x].velocity += force * deltaTime / particle.mass;
+}
+
+[numthreads(256, 1, 1)]
+void UpdateParticlesKernel(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= MAX_PARTICLES) return;
+
+    Particle particle = particlesBuffer[id.x];
+    particle.position += particle.velocity * deltaTime;
+    particlesBuffer[id.x] = particle;
+}
