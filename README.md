@@ -6,9 +6,23 @@ This project is an NBody simulation implemented using Unity, leveraging the Barn
 
 ### Features
 
-- Simulation of 100,000 particles: Runs on MacBook Pro M1 Pro with 10 cores and 16GB of UMA.
-- Performance: Achieves 8 iterations per second, though not in real-time.
-- Technology: Utilizes Unity for simulation and visualization. Currently, the simulation runs on CPU only.
+- Simulation of 242.000 particles maximum.
+- Performance: Achieves 3 iterations per second with 242.000 particles on an NVIDIA 4060 8GB.
+- Technology: Utilizes Unity for simulation and visualization. Currently, the simulation runs on GPU only.
+
+### Benchmark Results
+
+Below are the benchmark results for the simulation performance on an NVIDIA 4060 8GB GPU:
+
+| Number of Particles | Iterations per Second |
+|----------------------|-----------------------|
+| 8192                | 145                   |
+| 16384               | 90                    |
+| 32768               | 45                    |
+| 65536               | 17                    |
+| 131072              | 5                     |
+| 262144              | 3                     |
+
 
 ### Getting Started
 
@@ -16,7 +30,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ## Prerequisites
 - Unity 2021.2 or later
-- A MacBook Pro M1 Pro or equivalent system for optimal performance (though not strictly necessary)
+- Apple Silicon (M1 Pro or later), Windows PC, or equivalent system for optimal performance (though not strictly necessary)
 
 ## Installing
 - Clone the repository to your local machine:
@@ -32,7 +46,6 @@ These instructions will get you a copy of the project up and running on your loc
 
 We are currently seeking contributions to enhance this simulation, specifically:
 
-- GPU Acceleration: Transition the computational tasks from CPU to GPU to allow for more complex simulations and a greater number of particles.
 - Optimization: Improve the existing Barnes-Hut algorithm implementation for better performance and accuracy.
 
 ### If you're interested in contributing, please fork the repository and submit your pull requests for review.
@@ -40,7 +53,6 @@ We are currently seeking contributions to enhance this simulation, specifically:
 ## Known Issues
 
 - The simulation is not yet optimized for real-time performance on standard hardware.
-- Currently, only CPU-based computations are supported. Efforts to integrate GPU support are ongoing.
   
 ## Acknowledgments
 
