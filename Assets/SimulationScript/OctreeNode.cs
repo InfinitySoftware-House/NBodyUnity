@@ -80,34 +80,36 @@ public class OctreeNode {
 
     public Vector3 CalculateForceBarnesHut(ParticleEntity particle, OctreeNode node, float theta)
     {
-        // Early out if node ìor particle is null, or node is not populated
         if (node == null || particle == null) return Vector3.zero;
 
-        // Pre-calculate frequently used values
         Vector3 particlePosition = particle.position;
         float particleMass = particle.mass;
         Vector3 nodeCenterOfMass = node.CenterOfMass;
         float softeningSquared = SofteningSquared;
-
-        // Calculate force based on node type
         Vector3 force = Vector3.zero;
+
         if (node.Particles.Count == 1 && node.Particles[0] != particle)
         {
-            Vector3 direction = node.Particles[0].position - particlePosition;
-            float distanceSquared = direction.sqrMagnitude + softeningSquared;
-            force = direction.normalized * (Utility.G * particleMass * node.Particles[0].mass / distanceSquared);
-        }
-        else if (node.Size / Vector3.Distance(particlePosition, nodeCenterOfMass) < theta)
-        {
-            Vector3 direction = nodeCenterOfMass - particlePosition;
-            float distanceSquared = direction.sqrMagnitude + softeningSquared;
-            force = direction.normalized * (Utility.G * particleMass * node.TotalMass / distanceSquared);
+            Vector3 diff = node.Particles[0].position - particlePosition;
+            float distanceSquared = diff.sqrMagnitude + softeningSquared;
+            force = diff.normalized * (Utility.G * particleMass * node.Particles[0].mass / distanceSquared);
         }
         else
         {
-            foreach (var childNode in node.Children)
+            Vector3 diff = nodeCenterOfMass - particlePosition;
+            float distSqr = diff.sqrMagnitude;
+            // Replace expensive Vector3.Distance by comparing squared values
+            if (node.Size * node.Size < theta * theta * distSqr)
             {
-                force += CalculateForceBarnesHut(particle, childNode, theta);
+                float distanceSquared = distSqr + softeningSquared;
+                force = diff.normalized * (Utility.G * particleMass * node.TotalMass / distanceSquared);
+            }
+            else
+            {
+                foreach (var childNode in node.Children)
+                {
+                    force += CalculateForceBarnesHut(particle, childNode, theta);
+                }
             }
         }
 
