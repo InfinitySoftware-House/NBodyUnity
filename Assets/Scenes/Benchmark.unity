@@ -796,7 +796,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   particlePrefab: {fileID: 5979353885320303961, guid: fe9d907afe89f4212a8e9b6f8c4772bf, type: 3}
   iterationsPerSecText: {fileID: 691643273}
-  simulationTimeText: {fileID: 0}
+  simulationTimeText: {fileID: 254371446}
   showBloom: 1
   hud: {fileID: 257516899}
   computeShader: {fileID: 7200000, guid: a4bd8c565b05b46388f7577c98d66968, type: 3}

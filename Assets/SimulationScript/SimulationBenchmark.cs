@@ -226,20 +226,16 @@ public class SimulationBenchmark : MonoBehaviour
     // Update is called once per frame
     private void Update()
     {
-        simulationTimeText.text = Time.time.ToString("F0") + "s/20s";
+        simulationTimeText.text = Time.time.ToString("F0") + "/20s";
         // run the simulation for 20 seconds
         if (Time.time > 20)
         {
             runSimulation = false;
             // exit the application, if debug, exit the play mode
-            if (UnityEditor.EditorApplication.isPlaying)
-            {
-                UnityEditor.EditorApplication.isPlaying = false;
-            }
-            else
-            {
-                Application.Quit();
-            }
+            #if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+            #endif
+            Application.Quit();
         }
 
         iterationsPerSecText.color = runSimulation ? Color.white : Color.red;
