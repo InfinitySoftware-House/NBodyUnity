@@ -28,7 +28,7 @@ public class SimulationBenchmark : MonoBehaviour
     private bool showKineticEnergy = false;
     private bool showVelocityColor = false;
     public GameObject hud;
-    private Vector3 _particleSize = new(0.08f, 0.08f, 0.08f);
+    private Vector3 _particleSize = new(0.06f, 0.06f, 0.06f);
     public OctreeNode octree { get; private set; }
     private bool runSimulation = true;
     private bool startCameraRotation = true;
@@ -40,6 +40,8 @@ public class SimulationBenchmark : MonoBehaviour
     Mesh pointMesh;
     Material particleMaterial;
     List<double> iterationsPerSecList = new List<double>();
+
+    private int testDuration = 40; // seconds
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
@@ -56,8 +58,8 @@ public class SimulationBenchmark : MonoBehaviour
             switch(simulationMode)
             {
                 case SimulationMode.Galaxy:
-                    float innerRadius = 10f; // Inner radius of the ring
-                    float outerRadius = 100f; // Outer radius of the ring
+                    float innerRadius = 2f; // Inner radius of the ring
+                    float outerRadius = 50f; // Outer radius of the ring
                     float angle = i * 2.0f * Mathf.PI / count; // Distribute particles evenly around the circle
 
                     // Randomize radius within the ring bounds
@@ -226,9 +228,9 @@ public class SimulationBenchmark : MonoBehaviour
     // Update is called once per frame
     private void Update()
     {
-        simulationTimeText.text = Time.time.ToString("F0") + "/20s";
+        simulationTimeText.text = Time.time.ToString("F0") + "/" + testDuration.ToString("F0") + "s";
         // run the simulation for 20 seconds
-        if (Time.time > 20)
+        if (Time.time > testDuration)
         {
             runSimulation = false;
             // exit the application, if debug, exit the play mode
