@@ -41,7 +41,8 @@ public class SimulationBenchmark : MonoBehaviour
     Material particleMaterial;
     List<double> iterationsPerSecList = new List<double>();
 
-    private int testDuration = 40; // seconds
+    private int _testDuration = 40; // seconds
+    private int _isStress = false;
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
@@ -209,7 +210,27 @@ public class SimulationBenchmark : MonoBehaviour
         pointMesh = particlePrefab.GetComponent<MeshFilter>().sharedMesh;
         particleMaterial = particlePrefab.GetComponent<MeshRenderer>().sharedMaterial;
 
-        ClickButtonsAddCluster(10000);
+        // Leggi gli argomenti della riga di comando
+        int starsCount = 10000;
+        string[] args = Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--stars_count" && i + 1 < args.Length)
+            {
+                int.TryParse(args[i + 1], out starsCount);
+            }
+            if (args[i] == "--is_stress" && i + 1 < args.Length)
+            {
+                bool.TryParse(args[i + 1], out _isStress);
+            }
+            if(args[i] == "--test_duration" && i + 1 < args.Length)
+            {
+                int.TryParse(args[i + 1], out _testDuration);
+            }
+        }
+
+        // If stress test is enabled, set the stars count x10 the start count
+        ClickButtonsAddCluster(_isStress ? starsCount * 10 : starsCount);
     }
 
     private ObjectInfoModel GetObjectInfoModel(ParticleEntity particle)
@@ -228,9 +249,9 @@ public class SimulationBenchmark : MonoBehaviour
     // Update is called once per frame
     private void Update()
     {
-        simulationTimeText.text = Time.time.ToString("F0") + "/" + testDuration.ToString("F0") + "s";
+        simulationTimeText.text = Time.time.ToString("F0") + "/" + _testDuration.ToString("F0") + "s";
         // run the simulation for 20 seconds
-        if (Time.time > testDuration)
+        if (Time.time > _testDuration)
         {
             runSimulation = false;
             // exit the application, if debug, exit the play mode
@@ -511,8 +532,18 @@ public class SimulationBenchmark : MonoBehaviour
         if (!System.IO.Directory.Exists(basePath))
             System.IO.Directory.CreateDirectory(basePath);
 
-        string filePath = System.IO.Path.Combine(basePath, "average_iterations_per_sec.txt");
-        System.IO.File.WriteAllText(filePath, averageIterationsPerSec.ToString("F2"));
+        string filePath = System.IO.Path.Combine(basePath, "average_iterations_per_sec.json");
+
+        // Crea un oggetto per la serializzazione JSON
+        var resultObj = new {
+            average_iterations_per_sec = averageIterationsPerSec,
+            is_stress = _isStress,
+            stars_count = particles.Count,
+            test_duration = _testDuration
+        };
+        string json = UnityEngine.JsonUtility.ToJson(resultObj, true);
+
+        System.IO.File.WriteAllText(filePath, json);
     }
 
     public void ClickButtonsAddCluster(int count)
