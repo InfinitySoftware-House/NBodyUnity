@@ -215,10 +215,6 @@ public class SimulationBenchmark : MonoBehaviour
         string[] args = Environment.GetCommandLineArgs();
         for (int i = 0; i < args.Length; i++)
         {
-            if (args[i] == "--stars_count" && i + 1 < args.Length)
-            {
-                int.TryParse(args[i + 1], out starsCount);
-            }
             if (args[i] == "--is_stress" && i + 1 < args.Length)
             {
                 bool.TryParse(args[i + 1], out _isStress);
@@ -229,8 +225,8 @@ public class SimulationBenchmark : MonoBehaviour
             }
         }
 
-        // If stress test is enabled, set the stars count x10 the start count
-        ClickButtonsAddCluster(_isStress ? starsCount * 10 : starsCount);
+        // If stress test is enabled, set the stars count x2 the start count
+        ClickButtonsAddCluster(_isStress ? starsCount * 2 : starsCount);
     }
 
     private ObjectInfoModel GetObjectInfoModel(ParticleEntity particle)
