@@ -535,10 +535,9 @@ public class SimulationBenchmark : MonoBehaviour
         string filePath = System.IO.Path.Combine(basePath, "average_iterations_per_sec.json");
 
         // Crea un oggetto per la serializzazione JSON
-        var resultObj = new {
+        BenchmarkResult resultObj = new BenchmarkResult {
             average_iterations_per_sec = averageIterationsPerSec,
             is_stress = _isStress,
-            stars_count = particles.Count,
             test_duration = _testDuration
         };
         string json = UnityEngine.JsonUtility.ToJson(resultObj, true);
@@ -576,4 +575,12 @@ public class SimulationBenchmark : MonoBehaviour
 
         InitializeComputeShader();
     }
+}
+
+[Serializable]
+public class BenchmarkResult
+{
+    public double average_iterations_per_sec;
+    public bool is_stress;
+    public int test_duration;
 }
