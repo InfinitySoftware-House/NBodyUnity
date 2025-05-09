@@ -42,7 +42,7 @@ public class SimulationBenchmark : MonoBehaviour
     List<double> iterationsPerSecList = new List<double>();
 
     private int _testDuration = 40; // seconds
-    private int _isStress = false;
+    private bool _isStress = false;
 
     private void CreateCluster(Scene currentScene, Vector3 position, int count = 20)
     {
