@@ -16,15 +16,29 @@ public class ParticleEntity
     public float kineticEnergy;
     public Color color;
 
+    public ParticleEntity(Vector3 size, Vector3 velocity, float mass, float temperature, string type, Vector3 position, Color color, string name = "")
+    {
+        this.size = size;
+        this.position = position;
+        this.mass = mass;
+        this.velocity = velocity;
+        this.temperature = temperature;
+        this.size = size;
+        this.type = type;
+        this.name = string.IsNullOrEmpty(name) ? RandomNameGenerator() : name;
+        isBlackHole = mass >= 1000;
+        this.color = color;
+    }
+
+    // Backward-compatible constructor that accepts a GameObject
     public ParticleEntity(Vector3 size, Vector3 velocity, float mass, float temperature, string type, GameObject particleObject, Color color, string name = "")
     {
         this.size = size;
-        position = particleObject.transform.position;
+        this.particleObject = particleObject;
+        this.position = particleObject != null ? particleObject.transform.position : Vector3.zero;
         this.mass = mass;
         this.velocity = velocity;
-        this.particleObject = particleObject;
         this.temperature = temperature;
-        this.size = size;
         this.type = type;
         this.name = string.IsNullOrEmpty(name) ? RandomNameGenerator() : name;
         isBlackHole = mass >= 1000;
@@ -44,6 +58,9 @@ public class ParticleEntity
     public void SetPosition(Vector3 newPosition)
     {
         position = newPosition;
-        particleObject.transform.position = newPosition;
+        if (particleObject != null)
+        {
+            particleObject.transform.position = newPosition;
+        }
     }
 }

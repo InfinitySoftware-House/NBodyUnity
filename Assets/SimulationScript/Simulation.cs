@@ -150,27 +150,7 @@ public class Simulation : MonoBehaviour
         return massCenter / particles.Count;
     }
 
-    private GameObject CreateParticle(Vector3 size, Color color, float? x = null, float? y = null, float? z = null, bool isBlackHole = false, bool isStellar = true)
-    {
-        GameObject particle = new GameObject();
-        // Add components to display the particle
-        // MeshFilter mf = particle.AddComponent<MeshFilter>();
-        // mf.mesh = pointMesh; // using the cached mesh from the prefab
-        // MeshRenderer mr = particle.AddComponent<MeshRenderer>();
-        // mr.material = new Material(particleMaterial); // ensure a unique material instance for color updates
-
-        particle.transform.localScale = size;
-        if(x != null && y != null && z != null)
-            particle.transform.position = new Vector3((float)x, (float)y, (float)z);
-        else
-            particle.transform.position = Random.insideUnitSphere * 20;
-        
-        // Add a SphereCollider component with a default radius
-        SphereCollider collider = particle.AddComponent<SphereCollider>();
-        collider.radius = 1f;
-            
-        return particle;
-    }
+    // Removed per-particle GameObject creation to avoid spawning N objects.
 
     private bool CheckCollision(ParticleEntity body1, ParticleEntity body2)
     {
@@ -182,10 +162,11 @@ public class Simulation : MonoBehaviour
     private ParticleEntity AddParticle(Star star, Scene currentScene, Vector3? position = null, Vector3? velocity = null, float mass = 0.5f)
     {
         bool isBlackHole = mass >= 1000;
-        GameObject particleObject = CreateParticle(_particleSize, star.color, position?.x, position?.y, position?.z, isBlackHole, !isBlackHole);
-        ParticleEntity particleEntity = new(_particleSize, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, particleObject, star.color);
-        // call UpdateParticleColor upon creation
-        UpdateParticleColor(particleEntity, propertyChanged);
+        Vector3 spawnPosition = position ?? (Vector3)(Random.insideUnitSphere * 20);
+        ParticleEntity particleEntity = new(_particleSize, velocity ?? Vector3.zero, star.Mass, star.Temperature, star.Type, spawnPosition, star.color)
+        {
+            isBlackHole = isBlackHole
+        };
         return particleEntity;
     }
 
@@ -229,18 +210,25 @@ public class Simulation : MonoBehaviour
             runSimulation = !runSimulation;
         }
         if (Input.GetKeyDown(KeyCode.Mouse0)) {
-            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            if (Physics.Raycast(ray, out RaycastHit hit)) {
-                ParticleEntity selectedParticle = particles.FirstOrDefault(p => p.particleObject == hit.collider.gameObject);
-                if (selectedParticle != null) {
-                    ObjectInfoModel objectInfoModel = GetObjectInfoModel(selectedParticle);
-                    lockedParticle = selectedParticle;
-                    objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
-                    objectInfoObject.SetActive(true);
-                } else {
-                    lockedParticle = null;
-                    objectInfoObject.SetActive(false);
+            // Screen-space picking without per-particle GameObjects
+            float pickRadius = 12f; // pixels
+            float bestDist = float.MaxValue;
+            ParticleEntity best = null;
+            for (int i = 0; i < particles.Count; i++) {
+                Vector3 worldPos = (particlesGPU != null && particlesGPU.Length == particles.Count) ? particlesGPU[i].position : particles[i].position;
+                Vector3 sp = Camera.main.WorldToScreenPoint(worldPos);
+                if (sp.z < 0) continue; // behind camera
+                float dist = Vector2.Distance(new Vector2(sp.x, sp.y), (Vector2)Input.mousePosition);
+                if (dist < pickRadius && dist < bestDist) {
+                    bestDist = dist;
+                    best = particles[i];
                 }
+            }
+            if (best != null) {
+                lockedParticle = best;
+                ObjectInfoModel objectInfoModel = GetObjectInfoModel(best);
+                objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
+                objectInfoObject.SetActive(true);
             } else {
                 lockedParticle = null;
                 objectInfoObject.SetActive(false);
@@ -260,10 +248,6 @@ public class Simulation : MonoBehaviour
                 _starVelocity -= 1;
         }
         if (Input.GetKeyDown(KeyCode.R)) {
-            foreach (ParticleEntity particle in particles) {
-                if (particle != null && particle.particleObject != null && !particle.particleObject.IsDestroyed())
-                    Destroy(particle.particleObject);
-            }
             particles = new List<ParticleEntity>();
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
@@ -335,11 +319,7 @@ public class Simulation : MonoBehaviour
         if (lockedParticle != null) {
             ObjectInfoModel objectInfoModel = GetObjectInfoModel(lockedParticle);
             objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
-            GameObject go = SceneManager.GetActiveScene().GetRootGameObjects()
-                           .FirstOrDefault(g => g == lockedParticle.particleObject);
-            if (go != null) {
-                Camera.main.transform.LookAt(go.transform);
-            }
+            Camera.main.transform.LookAt(lockedParticle.position);
         }
     }
     #endregion
@@ -414,23 +394,17 @@ public class Simulation : MonoBehaviour
 
         for (int i = 0; i < particleCount; i++)
         {
-            matricesCache[i] = Matrix4x4.TRS(particlesGPU[i].position, Quaternion.identity, _particleSize);
+            Vector3 pos = particlesGPU[i].position;
+            matricesCache[i] = Matrix4x4.TRS(pos, Quaternion.identity, _particleSize);
+            // Keep CPU-side particle positions in sync for UI and picking
+            particles[i].position = pos;
         }
         Graphics.RenderMeshInstanced(rp, pointMesh, 0, matricesCache, particleCount);
     }
 
     private void UpdateParticleColor(ParticleEntity particle, bool hasChanged)
     {
-        Renderer particleRenderer = particle.particleObject.GetComponent<MeshRenderer>();
-        if (particleRenderer == null)
-        {
-            return;
-        }
-        Color starColor = Utility.GetStarColor(particle.temperature);
-        particleRenderer.material.color = starColor;
-        particleRenderer.material.SetColor("_EmissionColor", starColor);
-        if (!particleRenderer.material.IsKeywordEnabled("_EMISSION"))
-            particleRenderer.material.EnableKeyword("_EMISSION");
+        // No-op: per-instance colors are not applied without per-instance properties.
     }
 
     void UpdatePerformanceMetrics()
@@ -468,8 +442,7 @@ public class Simulation : MonoBehaviour
 
         UnityMainThreadDispatcher.Instance().Enqueue(() =>
         {
-            GameObject newParticleObject = CreateParticle(newSize, newMergedObject.color, newPosition.x, newPosition.y, newPosition.z, isBlackHole);
-            ParticleEntity mergedParticle = new ParticleEntity(newSize, newVelocity, newMass, newTemperature, type, newParticleObject, newMergedObject.color)
+            ParticleEntity mergedParticle = new ParticleEntity(newSize, newVelocity, newMass, newTemperature, type, newPosition, newMergedObject.color)
             {
                 isBlackHole = isBlackHole
             };
@@ -482,22 +455,11 @@ public class Simulation : MonoBehaviour
                 objectInfoObject.GetComponent<ObjectInfo>().ShowInfo(objectInfoModel);
                 lockedParticle = mergedParticle;
             }
-
-            if (currentEntity.particleObject != null && !currentEntity.particleObject.IsDestroyed())
-                Destroy(currentEntity.particleObject);
-            if (nextEntity.particleObject != null && !nextEntity.particleObject.IsDestroyed())
-                Destroy(nextEntity.particleObject);
         });
     }
 
     private void OnApplicationQuit()
     {
-        foreach (ParticleEntity particle in particles)
-        {
-            if (particle != null && particle.particleObject != null && !particle.particleObject.IsDestroyed())
-                Destroy(particle.particleObject);
-        }   
-
         CleanupComputeShader();
 
         particles = null;
